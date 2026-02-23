@@ -42,8 +42,11 @@ MAX_STEPS = 98800
 FREE_DAYS = int(os.getenv("FREE_DAYS", 3))  # 新用户免费天数
 
 # 验证码 OCR 重试次数
-CAPTCHA_RETRY_TIMES = 3
+CAPTCHA_RETRY_TIMES = 5
 APP_DEBUG = os.getenv("APP_DEBUG", "true").lower() in ("1", "true", "yes", "on")
+
+# 网络超时配置（秒）
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 30))  # 请求超时
 
 # 系统异常提示
 ERROR_MESSAGE = "系统异常，请联系QQ:188177020处理"

@@ -150,8 +150,8 @@ class ZeppAPI:
         if data is not None and isinstance(data, dict):
             kwargs['data'] = urllib.parse.urlencode(data)
 
-        # 处理 timeout
-        timeout = kwargs.pop('timeout', 15)
+        # 处理 timeout - 代理连接需要更长超时
+        timeout = kwargs.pop('timeout', 30)
         kwargs.setdefault('timeout', timeout)
 
         # 处理 allow_redirects
