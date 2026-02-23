@@ -1,0 +1,27 @@
+# Git
+.git
+.gitignore
+
+# Node
+frontend/node_modules
+frontend/dist
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.venv
+venv
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# Misc
+*.md
+*.log
+*.png
+.env
+.claude
