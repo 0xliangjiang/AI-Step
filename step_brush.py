@@ -164,6 +164,8 @@ class ZeppAPI:
                 'http': self.proxy_url,
                 'https': self.proxy_url
             }
+            # 使用代理时跳过SSL验证（代理可能使用自签名证书）
+            kwargs['verify'] = False
 
         # 使用 curl_cffi 发送请求，impersonate 参数模拟 Chrome
         if method.upper() == 'GET':
