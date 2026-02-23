@@ -288,19 +288,33 @@ class StepSkills:
 
     def _get_bindqr_for_user(self, user: User) -> dict:
         """为已注册用户获取绑定二维码"""
-        api = ZeppAPI(user.zepp_email, user.zepp_password, verbose=False, use_proxy=USE_PROXY)
-        api.userid = user.zepp_userid
+        try:
+            api = ZeppAPI(user.zepp_email, user.zepp_password, verbose=APP_DEBUG, use_proxy=USE_PROXY)
 
-        qr_result = api.get_qrcode_ticket(user.zepp_userid)
-        if qr_result['success'] and QRCODE_AVAILABLE:
-            qrcode_base64 = generate_qrcode(qr_result['ticket'])
-            return {
-                'success': True,
-                'qrcode_image': qrcode_base64,
-                'message': '请使用微信扫描下方二维码绑定设备，完成后回复"已绑定"'
-            }
+            # 检查是否有缓存的token
+            if user.login_token and user.app_token:
+                api.login_token = user.login_token
+                api.app_token = user.app_token
+                api.userid = user.zepp_userid
+            else:
+                # 需要登录
+                login_result = api.login()
+                if not login_result['success']:
+                    return {'success': False, 'message': f'登录失败：{login_result["message"]}'}
 
-        return {'success': False, 'message': ERROR_MESSAGE}
+            qr_result = api.get_qrcode_ticket(api.userid)
+            if qr_result['success'] and QRCODE_AVAILABLE:
+                qrcode_base64 = generate_qrcode(qr_result['ticket'])
+                return {
+                    'success': True,
+                    'qrcode_image': qrcode_base64,
+                    'message': '请使用微信扫描下方二维码绑定设备，完成后回复"已绑定"'
+                }
+
+            return {'success': False, 'message': '获取二维码失败，请重试'}
+        except Exception as e:
+            self._log(f"获取绑定二维码异常: {e}")
+            return {'success': False, 'message': ERROR_MESSAGE}
 
     def get_bindqr(self, user_key: str) -> dict:
         """获取绑定二维码"""
