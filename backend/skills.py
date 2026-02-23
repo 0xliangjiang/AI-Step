@@ -85,13 +85,32 @@ class StepSkills:
         """将账户分配给用户"""
         db = SessionLocal()
         try:
-            # 更新账户的 user_key
-            account.user_key = user_key
-            db.merge(account)
-            db.commit()
+            # 检查用户是否已存在
+            existing_user = db.query(User).filter(User.user_key == user_key).first()
 
-            # 获取绑定二维码
-            return self._get_bindqr_for_user(account)
+            if existing_user:
+                # 用户已存在，将账户信息复制到现有用户
+                existing_user.zepp_email = account.zepp_email
+                existing_user.zepp_password = account.zepp_password
+                existing_user.zepp_userid = account.zepp_userid
+                existing_user.bind_status = account.bind_status
+                db.commit()
+                # 删除账户池中的记录
+                db.delete(account)
+                db.commit()
+                self._log(f"已将账户 {account.zepp_email} 绑定到现有用户 {user_key}")
+
+                # 获取绑定二维码
+                return self._get_bindqr_for_user(existing_user)
+            else:
+                # 用户不存在，直接更新账户的 user_key
+                account.user_key = user_key
+                db.merge(account)
+                db.commit()
+                self._log(f"已将账户 {account.zepp_email} 分配给新用户 {user_key}")
+
+                # 获取绑定二维码
+                return self._get_bindqr_for_user(account)
         except Exception as e:
             self._log(f"分配账户失败: {e}")
             db.rollback()
