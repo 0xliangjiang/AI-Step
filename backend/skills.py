@@ -55,6 +55,23 @@ class StepSkills:
         if APP_DEBUG:
             print(f"[StepSkills] {msg}")
 
+    def _trigger_bind_button_once(self, user_key: str) -> bool:
+        """登录成功后仅触发一次后台绑定动作。"""
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.user_key == user_key).first()
+            if not user:
+                return False
+            if user.bind_status == 1 or user.bind_button_triggered == 1:
+                return False
+            user.bind_button_triggered = 1
+            db.merge(user)
+            db.commit()
+            self._log(f"后台绑定动作首次触发: user_key={user_key}")
+            return True
+        finally:
+            db.close()
+
     def get_user(self, user_key: str) -> User:
         """获取用户信息"""
         db = SessionLocal()
@@ -100,8 +117,8 @@ class StepSkills:
                 db.commit()
                 self._log(f"已将账户 {account.zepp_email} 绑定到现有用户 {user_key}")
 
-                # 获取绑定二维码
-                return self._get_bindqr_for_user(existing_user)
+                # 登录成功后触发一次后台绑定
+                return self._get_bindqr_for_user(existing_user, auto_trigger=True)
             else:
                 # 用户不存在，直接更新账户的 user_key
                 account.user_key = user_key
@@ -109,8 +126,8 @@ class StepSkills:
                 db.commit()
                 self._log(f"已将账户 {account.zepp_email} 分配给新用户 {user_key}")
 
-                # 获取绑定二维码
-                return self._get_bindqr_for_user(account)
+                # 登录成功后触发一次后台绑定
+                return self._get_bindqr_for_user(account, auto_trigger=True)
         except Exception as e:
             self._log(f"分配账户失败: {e}")
             db.rollback()
@@ -140,8 +157,8 @@ class StepSkills:
                     'message': f'您已完成注册和绑定，可以直接刷步了。'
                 }
             else:
-                # 已注册但未绑定，返回二维码
-                return self._get_bindqr_for_user(user)
+                # 已注册但未绑定，登录成功后触发一次后台绑定
+                return self._get_bindqr_for_user(user, auto_trigger=True)
 
         # 如果有待验证的验证码，使用用户输入的验证码继续注册
         if captcha_code and user_key in self.pending_captcha:
@@ -241,7 +258,7 @@ class StepSkills:
         return {'success': False, 'message': f"注册失败：{reg_result['message']}"}
 
     def _save_and_get_qr(self, user_key: str, email: str, password: str, api: ZeppAPI) -> dict:
-        """保存用户信息并获取绑定二维码"""
+        """保存用户信息、绑定手环、获取微信绑定二维码"""
         # 登录获取 userid
         api.user = email
         api.password = password
@@ -268,26 +285,42 @@ class StepSkills:
         finally:
             db.close()
 
-        # 获取绑定二维码
+        # 1. 调用 bindband 绑定手环（通过第三方API，自动完成）
+        self._log(f"调用 bindband 绑定手环: {email}")
+        bind_result = bindband(email, password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        self._log(f"bindband 结果: {bind_result}")
+
+        bind_msg = ""
+        if bind_result['success']:
+            bind_msg = "手环已绑定，"
+        else:
+            bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，"
+
+        # 2. 获取微信绑定二维码（用户扫码绑定微信）
         qr_result = api.get_qrcode_ticket()
         if qr_result['success']:
             ticket = qr_result['ticket']
-            # 生成二维码图片
             if QRCODE_AVAILABLE:
                 qrcode_base64 = generate_qrcode(ticket)
                 return {
                     'success': True,
                     'qrcode_image': qrcode_base64,
-                    'message': '注册成功！请使用微信扫描下方二维码绑定设备，完成后回复"已绑定"'
+                    'message': f'注册成功！{bind_msg}请使用微信扫描下方二维码绑定微信，完成后回复"已绑定"'
                 }
 
         return {
             'success': True,
-            'message': f'注册成功！请在微信中打开链接绑定设备：{qr_result.get("ticket", "获取失败")}'
+            'message': f'注册成功！{bind_msg}请在微信中打开链接绑定：{qr_result.get("ticket", "获取失败")}'
         }
 
-    def _get_bindqr_for_user(self, user: User) -> dict:
-        """为已注册用户获取绑定二维码"""
+    def _get_bindqr_for_user_by_key(self, user_key: str, auto_trigger: bool = False) -> dict:
+        user = self.get_user(user_key)
+        if not user:
+            return {'success': False, 'message': '用户不存在'}
+        return self._get_bindqr_for_user(user, auto_trigger=auto_trigger)
+
+    def _get_bindqr_for_user(self, user: User, auto_trigger: bool = False) -> dict:
+        """为已注册用户绑定手环并获取微信绑定二维码"""
         try:
             api = ZeppAPI(user.zepp_email, user.zepp_password, verbose=APP_DEBUG, use_proxy=USE_PROXY)
 
@@ -302,13 +335,26 @@ class StepSkills:
                 if not login_result['success']:
                     return {'success': False, 'message': f'登录失败：{login_result["message"]}'}
 
+            bind_msg = ""
+
+            # 1. 自动触发绑定手环（仅首次）
+            if auto_trigger and user.user_key and self._trigger_bind_button_once(user.user_key):
+                bind_result = bindband(user.zepp_email, user.zepp_password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+                self._log(f"自动绑定手环结果: {bind_result}")
+                if bind_result.get("success"):
+                    bind_msg = "手环已绑定，"
+                else:
+                    bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，"
+
+            # 2. 获取微信绑定二维码（始终返回，让用户扫码绑定微信）
             qr_result = api.get_qrcode_ticket(api.userid)
             if qr_result['success'] and QRCODE_AVAILABLE:
                 qrcode_base64 = generate_qrcode(qr_result['ticket'])
+                message = bind_msg + '请使用微信扫描下方二维码绑定微信，完成后回复"已绑定"'
                 return {
                     'success': True,
                     'qrcode_image': qrcode_base64,
-                    'message': '请使用微信扫描下方二维码绑定设备，完成后回复"已绑定"'
+                    'message': message
                 }
 
             return {'success': False, 'message': '获取二维码失败，请重试'}
@@ -449,10 +495,6 @@ class StepSkills:
             }
 
         return {'success': False, 'message': f"刷步失败：{result['message']}"}
-
-    def _log(self, msg: str):
-        if APP_DEBUG:
-            print(f"[StepSkills] {msg}")
 
     def check_vip(self, user_key: str) -> dict:
         """检查会员状态"""

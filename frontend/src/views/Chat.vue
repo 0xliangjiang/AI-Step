@@ -650,6 +650,7 @@ export default {
   border: 1px solid #eee;
 }
 
+
 /* Typing */
 .message-content.typing {
   display: flex;

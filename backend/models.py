@@ -3,7 +3,7 @@
 数据库模型
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, create_engine
+from sqlalchemy import Column, Integer, String, Text, DateTime, create_engine, inspect, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
@@ -38,6 +38,7 @@ class User(Base):
     zepp_password = Column(String(255), comment="Zepp密码")
     zepp_userid = Column(String(100), comment="Zepp用户ID")
     bind_status = Column(Integer, default=0, comment="绑定状态: 0未绑定 1已绑定")
+    bind_button_triggered = Column(Integer, default=0, comment="绑定按钮触发状态: 0未触发 1已触发")
     vip_expire_at = Column(DateTime, comment="会员过期时间")
     login_token = Column(Text, comment="登录Token缓存")
     app_token = Column(Text, comment="App Token缓存")
@@ -57,6 +58,7 @@ class User(Base):
             "zepp_email": self.zepp_email,
             "zepp_userid": self.zepp_userid,
             "bind_status": self.bind_status,
+            "bind_button_triggered": self.bind_button_triggered,
             "vip_expire_at": self.vip_expire_at.strftime("%Y-%m-%d %H:%M:%S") if self.vip_expire_at else None,
             "is_vip": is_vip,
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None
@@ -151,6 +153,23 @@ SessionLocal = sessionmaker(bind=engine)
 def init_db():
     """初始化数据库表"""
     Base.metadata.create_all(engine)
+    _ensure_schema_columns()
+
+
+def _ensure_schema_columns():
+    """轻量级 schema 补丁，兼容已有库缺字段场景"""
+    inspector = inspect(engine)
+    if not inspector.has_table("users"):
+        return
+
+    existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    if "bind_button_triggered" not in existing_columns:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE users "
+                "ADD COLUMN bind_button_triggered INT DEFAULT 0 "
+                "COMMENT '绑定按钮触发状态: 0未触发 1已触发'"
+            ))
 
 
 def get_db():
