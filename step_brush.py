@@ -9,6 +9,7 @@ import uuid
 import json
 import random
 import string
+from collections import Counter
 import re
 import time
 import math
@@ -29,7 +30,7 @@ except ImportError:
 
 try:
     import ddddocr
-    from PIL import Image
+    from PIL import Image, ImageEnhance, ImageFilter
     DDDDOCR_AVAILABLE = True
 except ImportError:
     DDDDOCR_AVAILABLE = False
@@ -119,7 +120,7 @@ class ZeppAPI:
         if self.verbose:
             print(f"[LOG] {msg}")
 
-    def _request_with_retry(self, method: str, url: str, max_retries: int = 4, **kwargs):
+    def _request_with_retry(self, method: str, url: str, max_retries: int = 4, use_proxy=True, **kwargs):
         """
         请求包装：遇到 429 时指数退避重试，避免短时间触发限流。
         支持 curl_cffi 和普通 requests 两种模式。
@@ -128,9 +129,14 @@ class ZeppAPI:
         for attempt in range(max_retries):
             if self.use_tls:
                 # 使用 curl_cffi (Chrome TLS 指纹)
-                resp = self._curl_request(method, url, **kwargs)
+                resp = self._curl_request(method, url, use_proxy=use_proxy, **kwargs)
             else:
                 # 使用普通 requests
+                if use_proxy and self.use_proxy and self.proxy_url:
+                    kwargs['proxies'] = {
+                        'http': self.proxy_url,
+                        'https': self.proxy_url
+                    }
                 resp = requests.request(method, url, **kwargs)
 
             last_resp = resp
@@ -143,7 +149,7 @@ class ZeppAPI:
 
         return last_resp
 
-    def _curl_request(self, method: str, url: str, **kwargs):
+    def _curl_request(self, method: str, url: str, use_proxy=True, **kwargs):
         """使用 curl_cffi 发送请求（模拟 Chrome TLS 指纹）"""
         # 处理 data 参数
         data = kwargs.get('data')
@@ -159,7 +165,7 @@ class ZeppAPI:
         kwargs['allow_redirects'] = allow_redirects
 
         # 处理代理 (curl_cffi 使用 proxies 字典)
-        if self.use_proxy and self.proxy_url:
+        if use_proxy and self.use_proxy and self.proxy_url:
             kwargs['proxies'] = {
                 'http': self.proxy_url,
                 'https': self.proxy_url
@@ -177,13 +183,13 @@ class ZeppAPI:
 
         return resp
 
-    def _request(self, method: str, url: str, **kwargs):
+    def _request(self, method: str, url: str, use_proxy=True, **kwargs):
         """通用请求方法，自动选择 curl_cffi 或 requests"""
         if self.use_tls:
-            return self._curl_request(method, url, **kwargs)
+            return self._curl_request(method, url, use_proxy=use_proxy, **kwargs)
         else:
             # 普通请求也支持代理
-            if self.use_proxy and self.proxy_url:
+            if use_proxy and self.use_proxy and self.proxy_url:
                 kwargs['proxies'] = {
                     'http': self.proxy_url,
                     'https': self.proxy_url
@@ -368,7 +374,7 @@ class ZeppAPI:
             url = f"https://api-user.huami.com/captcha/{captcha_type}?random={random_num}"
             self.log(f"获取验证码: {url}")
 
-            response = self._request_with_retry("GET", url, timeout=10)
+            response = self._request_with_retry("GET", url, timeout=10, use_proxy=True)
             self.log(f"响应状态码: {response.status_code}")
             self.log(f"响应头: {dict(response.headers)}")
 
@@ -870,27 +876,56 @@ def ocr_captcha(image_data: bytes) -> str:
     if not image_data or len(image_data) < 100:
         raise ValueError(f"图片数据无效，长度: {len(image_data) if image_data else 0}")
 
-    # 预处理图片：去掉透明通道，转为RGB
+    # 预处理图片
     img = Image.open(BytesIO(image_data))
 
+    # 处理透明通道
     if img.mode == 'RGBA':
-        # 创建白色背景
         background = Image.new('RGB', img.size, (255, 255, 255))
         background.paste(img, mask=img.split()[3])
         img = background
     elif img.mode != 'RGB':
         img = img.convert('RGB')
 
+    # 图片预处理增强 OCR 准确率
+    # 1. 放大图片 (2倍)
+    width, height = img.size
+    img = img.resize((width * 2, height * 2), Image.Resampling.LANCZOS)
+
+    # 2. 转灰度
+    img = img.convert('L')
+
+    # 3. 增强对比度
+    enhancer = ImageEnhance.Contrast(img)
+    img = enhancer.enhance(2.0)
+
+    # 4. 锐化
+    img = img.filter(ImageFilter.SHARPEN)
+
+    # 5. 二值化处理
+    threshold = 128
+    img = img.point(lambda x: 255 if x > threshold else 0)
+
     # 转为bytes
     buf = BytesIO()
     img.save(buf, format='PNG')
     buf.seek(0)
 
-    # OCR识别
+    # OCR识别 - 多次尝试取最常见结果
     ocr = ddddocr.DdddOcr(show_ad=False)
-    result = ocr.classification(buf.read())
+    results = []
+    for _ in range(3):
+        buf.seek(0)
+        result = ocr.classification(buf.read())
+        if result:
+            results.append(result.lower().strip())
 
-    return result
+    # 返回最常见的结果
+    if results:
+        counter = Counter(results)
+        return counter.most_common(1)[0][0]
+
+    return ""
 
 
 # ==================== 二维码生成 ====================
