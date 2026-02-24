@@ -373,6 +373,39 @@ class StepSkills:
 
         return self._get_bindqr_for_user(user)
 
+    def bind_device(self, user_key: str) -> dict:
+        """绑定手环设备（通过第三方API自动完成，无需扫码）"""
+        user = self.get_user(user_key)
+        if not user or not user.zepp_email:
+            return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
+
+        # 调用 bindband API 绑定手环
+        self._log(f"手动触发绑定手环: {user.zepp_email}")
+        bind_result = bindband(user.zepp_email, user.zepp_password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        self._log(f"绑定手环结果: {bind_result}")
+
+        if bind_result['success']:
+            # 更新 bind_button_triggered 状态
+            db = SessionLocal()
+            try:
+                db_user = db.query(User).filter(User.user_key == user_key).first()
+                if db_user:
+                    db_user.bind_button_triggered = 1
+                    db.merge(db_user)
+                    db.commit()
+            finally:
+                db.close()
+
+            return {
+                'success': True,
+                'message': '手环绑定成功！接下来请扫码绑定微信，完成后回复"已绑定"'
+            }
+
+        return {
+            'success': False,
+            'message': f'手环绑定失败：{bind_result.get("message", "未知错误")}，请稍后重试'
+        }
+
     def check_bindstatus(self, user_key: str) -> dict:
         """检查绑定状态"""
         user = self.get_user(user_key)
@@ -612,6 +645,20 @@ FUNCTIONS = [
         }
     },
     {
+        "name": "bind_device",
+        "description": "绑定手环设备。通过第三方API自动完成，无需扫码。当用户说'绑定手环'、'绑定设备'、'触发绑定'等时调用。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_key": {
+                    "type": "string",
+                    "description": "用户唯一标识"
+                }
+            },
+            "required": ["user_key"]
+        }
+    },
+    {
         "name": "check_bindstatus",
         "description": "检查用户是否已绑定微信。当用户说'已绑定'、'绑定好了'等时调用。",
         "parameters": {
@@ -797,6 +844,8 @@ def execute_function(function_name: str, arguments: dict) -> dict:
         )
     elif function_name == "get_bindqr":
         return skills.get_bindqr(arguments.get("user_key"))
+    elif function_name == "bind_device":
+        return skills.bind_device(arguments.get("user_key"))
     elif function_name == "check_bindstatus":
         return skills.check_bindstatus(arguments.get("user_key"))
     elif function_name == "brush_step":
