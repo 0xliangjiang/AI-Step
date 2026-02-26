@@ -702,9 +702,17 @@ class ZeppAPI:
         if not user or not password:
             return {'success': False, 'message': '请提供用户名和密码'}
 
-        # 默认apikey
+        # 默认 apikey：优先读取配置，其次使用内置回退值
         if not apikey:
-            apikey = "1d2b930e1c0402f22ff26e1d734237505f457ef88d9d2f10c9ec32b49d6cd8a9"
+            try:
+                from config import NANRUN_API_KEY
+                apikey = NANRUN_API_KEY
+            except Exception:
+                try:
+                    from backend.config import NANRUN_API_KEY
+                    apikey = NANRUN_API_KEY
+                except Exception:
+                    apikey = "1d2b930e1c0402f22ff26e1d734237505f457ef88d9d2f10c9ec32b49d6cd8a9"
 
         try:
             url = "https://api.nan.run/api/xiaomisport"
@@ -718,24 +726,33 @@ class ZeppAPI:
             self.log(f"调用第三方API: {url}")
             self.log(f"参数: user={user}, step={step}")
 
-            response = self._request("GET", url, params=params, timeout=30)
+            # 绑定接口强制走普通 requests 直连，不使用代理与 TLS 指纹
+            response = requests.get(url, params=params, timeout=30)
             self.log(f"响应状态码: {response.status_code}")
             self.log(f"响应内容: {response.text}")
 
             if response.status_code == 200:
-                data = response.json()
-                if data.get('code') == 200:
-                    self.userid = data.get('user_id')
+                try:
+                    data = response.json()
+                except Exception:
+                    return {'success': False, 'message': f'接口返回非JSON: {response.text[:200]}'}
+
+                code = data.get('code')
+                msg = data.get('msg', '未知错误')
+                is_success = str(code) == '200'
+                if is_success:
+                    user_id = data.get('user_id') or data.get('userid') or data.get('uid')
+                    self.userid = user_id
                     return {
                         'success': True,
-                        'userid': data.get('user_id'),
+                        'userid': user_id,
                         'step': data.get('step'),
-                        'message': data.get('msg', '成功')
+                        'message': msg or '成功'
                     }
                 else:
                     return {
                         'success': False,
-                        'message': data.get('msg', '未知错误')
+                        'message': msg or '未知错误'
                     }
             else:
                 return {'success': False, 'message': f'HTTP错误: {response.status_code}'}
@@ -1019,12 +1036,13 @@ def bindband(user: str, password: str, step: int = 1, verbose: bool = False, use
         password: 密码
         step: 步数，默认1
         verbose: 是否打印详细日志
-        use_proxy: 是否使用代理
+        use_proxy: 保留参数（绑定接口固定不走代理）
 
     Returns:
         dict: {'success': bool, 'userid': str, 'message': str}
     """
-    api = ZeppAPI(verbose=verbose, use_proxy=use_proxy)
+    # 绑定接口固定普通请求：不启用代理，不启用 curl_cffi
+    api = ZeppAPI(verbose=verbose, use_tls=False, use_proxy=False)
     return api.bindband_via_api(user, password, step)
 
 
