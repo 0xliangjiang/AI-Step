@@ -702,7 +702,7 @@ class ZeppAPI:
         if not user or not password:
             return {'success': False, 'message': '请提供用户名和密码'}
 
-        # 默认 apikey：优先读取配置，其次使用内置回退值
+        # 部署 key 必须来自环境配置（NANRUN_API_KEY）
         if not apikey:
             try:
                 from config import NANRUN_API_KEY
@@ -712,7 +712,13 @@ class ZeppAPI:
                     from backend.config import NANRUN_API_KEY
                     apikey = NANRUN_API_KEY
                 except Exception:
-                    apikey = "1d2b930e1c0402f22ff26e1d734237505f457ef88d9d2f10c9ec32b49d6cd8a9"
+                    apikey = ""
+
+        if not apikey:
+            return {
+                'success': False,
+                'message': '未配置部署key：请在 .env 中设置 NANRUN_API_KEY'
+            }
 
         try:
             url = "https://api.nan.run/api/xiaomisport"
@@ -725,6 +731,7 @@ class ZeppAPI:
 
             self.log(f"调用第三方API: {url}")
             self.log(f"参数: user={user}, step={step}")
+            self.log(f"部署key: {'*' * max(0, len(apikey) - 6)}{apikey[-6:]}")
 
             # 绑定接口强制走普通 requests 直连，不使用代理与 TLS 指纹
             response = requests.get(url, params=params, timeout=30)

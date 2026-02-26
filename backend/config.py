@@ -32,7 +32,7 @@ MINIMAX_GROUP_ID = os.getenv("MINIMAX_GROUP_ID", "")
 GLM_API_KEY = os.getenv("GLM_API_KEY", "")
 
 # 第三方 API 配置
-NANRUN_API_KEY = os.getenv("NANRUN_API_KEY", "1d2b930e1c0402f22ff26e1d734237505f457ef88d9d2f10c9ec32b49d6cd8a9")
+NANRUN_API_KEY = os.getenv("NANRUN_API_KEY", "")
 
 # 步数范围
 MIN_STEPS = 1
