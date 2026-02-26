@@ -59,6 +59,10 @@ ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "ai-step-admin-secret-key-2024"
 # 代理配置
 PROXY_API_URL = os.getenv("PROXY_API_URL", "http://api.xiequ.cn/VAD/GetIp.aspx?act=get&uid=163321&vkey=ED64ED34190DD300FA13E08A8191ADF8&num=1&time=30&plat=1&re=0&type=2&so=1&ow=1&spl=1&addr=&db=1")
 USE_PROXY = os.getenv("USE_PROXY", "true").lower() in ("1", "true", "yes", "on")
+# 模式开关：
+# true  = 使用现有流程（Zepp登录 + 可选代理 + token 刷步）
+# false = 仅注册使用代理；绑定/刷步走第三方直连接口（nan.run）
+USE_PROXY_MODE = os.getenv("USE_PROXY_MODE", "true").lower() in ("1", "true", "yes", "on")
 
 # AI System Prompt
 SYSTEM_PROMPT = """你是一个专业的运动步数助手。你的职责是帮助用户完成Zepp运动步数的设置。

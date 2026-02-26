@@ -9,6 +9,7 @@ import uuid
 import json
 import random
 import string
+import ipaddress
 from collections import Counter
 import re
 import time
@@ -120,6 +121,27 @@ class ZeppAPI:
         if self.verbose:
             print(f"[LOG] {msg}")
 
+    @staticmethod
+    def _random_public_ipv4() -> str:
+        """生成随机公网 IPv4，避免保留/私有网段。"""
+        while True:
+            ip = ipaddress.IPv4Address(random.getrandbits(32))
+            if not (ip.is_private or ip.is_multicast or ip.is_loopback or ip.is_reserved or ip.is_unspecified):
+                return str(ip)
+
+    def _add_spoof_ip_headers(self, headers: dict) -> tuple[dict, str]:
+        """为请求头附加伪装IP信息。"""
+        fake_ip = self._random_public_ipv4()
+        merged = dict(headers or {})
+        merged.update({
+            "X-Forwarded-For": fake_ip,
+            "X-Real-IP": fake_ip,
+            "Client-IP": fake_ip,
+            "CF-Connecting-IP": fake_ip,
+            "True-Client-IP": fake_ip,
+        })
+        return merged, fake_ip
+
     def _request_with_retry(self, method: str, url: str, max_retries: int = 4, use_proxy=True, **kwargs):
         """
         请求包装：遇到 429 时指数退避重试，避免短时间触发限流。
@@ -228,6 +250,8 @@ class ZeppAPI:
                 "x-hm-ekv": "1",
                 "hm-privacy-ceip": "false"
             }
+            headers1, fake_ip1 = self._add_spoof_ip_headers(headers1)
+            self.log(f"[步骤1] 伪装IP: {fake_ip1}")
 
             login_data = {
                 'emailOrPhone': self.user,
@@ -270,6 +294,8 @@ class ZeppAPI:
                 "appplatform": "android_phone",
                 "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
             }
+            headers2, fake_ip2 = self._add_spoof_ip_headers(headers2)
+            self.log(f"[步骤2] 伪装IP: {fake_ip2}")
 
             if self.is_phone:
                 data2 = {
@@ -331,6 +357,8 @@ class ZeppAPI:
         """获取app_token"""
         url = f"https://account-cn.huami.com/v1/client/app_tokens?app_name=com.xiaomi.hm.health&dn=api-user.huami.com,api-mifit.huami.com,app-analytics.huami.com&login_token={login_token}"
         headers = {'User-Agent': 'MiFit/5.3.0 (iPhone; iOS 14.7.1; Scale/3.00)'}
+        headers, fake_ip3 = self._add_spoof_ip_headers(headers)
+        self.log(f"[步骤3] 伪装IP: {fake_ip3}")
         self.log(f"[步骤3] 请求: GET app_token")
         response = self._request("GET", url, headers=headers, timeout=15)
         self.log(f"[步骤3] 响应状态码: {response.status_code}")

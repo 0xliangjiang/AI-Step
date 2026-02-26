@@ -8,13 +8,14 @@ from datetime import datetime, date
 from typing import Optional
 
 from models import ScheduledTask, User, SessionLocal
-from config import APP_DEBUG, USE_PROXY
+from config import APP_DEBUG, USE_PROXY, USE_PROXY_MODE
 
 # 导入 step_brush
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from step_brush import ZeppAPI
+from step_brush import bindband
 
 
 class StepScheduler:
@@ -132,12 +133,23 @@ class StepScheduler:
         db = SessionLocal()
         try:
             user = db.query(User).filter(User.user_key == user_key).first()
-            if not user or not user.zepp_email or user.bind_status != 1:
+            if not user or not user.zepp_email:
+                return False
+            if USE_PROXY_MODE and user.bind_status != 1:
                 return False
 
-            api = ZeppAPI(user.zepp_email, user.zepp_password, verbose=APP_DEBUG, use_proxy=USE_PROXY)
-            api.userid = user.zepp_userid
-            result = api.update_step(steps)
+            if USE_PROXY_MODE:
+                api = ZeppAPI(user.zepp_email, user.zepp_password, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+                api.userid = user.zepp_userid
+                result = api.update_step(steps)
+            else:
+                result = bindband(
+                    user.zepp_email,
+                    user.zepp_password,
+                    step=steps,
+                    verbose=APP_DEBUG,
+                    use_proxy=False
+                )
 
             return result.get("success", False)
         except Exception as e:
@@ -153,9 +165,11 @@ class StepScheduler:
         """创建定时任务"""
         db = SessionLocal()
         try:
-            # 检查用户是否已绑定
+            # 检查用户是否可执行刷步
             user = db.query(User).filter(User.user_key == user_key).first()
-            if not user or user.bind_status != 1:
+            if not user or not user.zepp_email:
+                return {"success": False, "message": "请先完成设备注册"}
+            if USE_PROXY_MODE and user.bind_status != 1:
                 return {"success": False, "message": "请先完成设备绑定"}
 
             # 检查是否已有任务
