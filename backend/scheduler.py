@@ -4,6 +4,7 @@
 """
 import time
 import threading
+import math
 from datetime import datetime, date
 from typing import Optional
 
@@ -98,20 +99,23 @@ class StepScheduler:
         if task.current_step_index > expected_index:
             return  # 已经执行过当前时间段
 
-        # 计算应该达到的步数
-        total_hours = task.end_hour - task.start_hour
-        steps_per_hour = task.target_steps // total_hours
-        target_current_steps = (expected_index + 1) * steps_per_hour
+        # 按“剩余时间段”分摊剩余步数，避免中途创建任务时一次性补满
+        steps_remaining = max(0, task.target_steps - task.current_steps)
+        remaining_slots = task.end_hour - current_hour  # 包含当前小时
+        if remaining_slots <= 0 or steps_remaining <= 0:
+            return
 
-        # 确保最后一段时间达到目标
-        if expected_index == total_hours - 1:
-            target_current_steps = task.target_steps
+        # 最后一段补齐剩余步数；其他时段按向上取整分摊
+        if remaining_slots == 1:
+            steps_to_add = steps_remaining
+        else:
+            steps_to_add = math.ceil(steps_remaining / remaining_slots)
 
-        # 计算本次需要刷的步数
-        steps_to_add = target_current_steps - task.current_steps
+        target_current_steps = task.current_steps + steps_to_add
         if steps_to_add <= 0:
             return  # 不需要刷步
 
+        total_hours = task.end_hour - task.start_hour
         self.log(f"任务 {task.user_key}: 时间段 {expected_index + 1}/{total_hours}, "
                 f"目标 {target_current_steps}, 当前 {task.current_steps}, 本次刷 {steps_to_add}")
 
