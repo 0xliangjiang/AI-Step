@@ -37,10 +37,10 @@ except ImportError:
     DDDDOCR_AVAILABLE = False
 
 try:
-    from curl_cffi import requests as curl_requests
-    CURL_CFFI_AVAILABLE = True
+    import tls_client
+    TLS_CLIENT_AVAILABLE = True
 except ImportError:
-    CURL_CFFI_AVAILABLE = False
+    TLS_CLIENT_AVAILABLE = False
 
 
 def encrypt_login_data(plain: bytes) -> bytes:
@@ -81,8 +81,9 @@ class ZeppAPI:
         self.app_token = None
         self.use_proxy = use_proxy
         self.proxy_url = None
-        self.use_tls = use_tls and CURL_CFFI_AVAILABLE
+        self.use_tls = use_tls and TLS_CLIENT_AVAILABLE
         self.enable_spoof_ip = enable_spoof_ip
+        self._tls_session = None
 
         # 如果启用代理，获取代理
         if self.use_proxy:
@@ -91,9 +92,9 @@ class ZeppAPI:
         # 初始化提示
         if self.use_tls:
             if self.use_proxy and self.proxy_url:
-                self.log(f"使用 curl_cffi (Chrome 120) + 代理")
+                self.log("使用 tls-client + 代理")
             else:
-                self.log("使用 curl_cffi (Chrome 120 指纹)")
+                self.log("使用 tls-client")
         else:
             self.log("使用普通 requests")
 
@@ -154,21 +155,30 @@ class ZeppAPI:
     def _request_with_retry(self, method: str, url: str, max_retries: int = 4, use_proxy=True, **kwargs):
         """
         请求包装：遇到 429 时指数退避重试，避免短时间触发限流。
-        支持 curl_cffi 和普通 requests 两种模式。
+        支持 tls-client 和普通 requests 两种模式。
         """
         last_resp = None
         for attempt in range(max_retries):
-            if self.use_tls:
-                # 使用 curl_cffi (Chrome TLS 指纹)
-                resp = self._curl_request(method, url, use_proxy=use_proxy, **kwargs)
-            else:
-                # 使用普通 requests
-                if use_proxy and self.use_proxy and self.proxy_url:
-                    kwargs['proxies'] = {
-                        'http': self.proxy_url,
-                        'https': self.proxy_url
-                    }
-                resp = requests.request(method, url, **kwargs)
+            try:
+                if self.use_tls:
+                    # 使用 tls-client
+                    resp = self._tls_request(method, url, use_proxy=use_proxy, **kwargs)
+                else:
+                    # 使用普通 requests
+                    if use_proxy and self.use_proxy and self.proxy_url:
+                        kwargs['proxies'] = {
+                            'http': self.proxy_url,
+                            'https': self.proxy_url
+                        }
+                    resp = requests.request(method, url, **kwargs)
+            except Exception as e:
+                # 代理链路常见错误：握手失败/EOF/连接中断，自动切换代理重试
+                if use_proxy and self.use_proxy:
+                    self.log(f"请求异常，尝试切换代理后重试({attempt + 1}/{max_retries}): {e}")
+                    self._fetch_proxy()
+                    time.sleep(min(2.0, 0.3 * (attempt + 1)))
+                    continue
+                raise
 
             last_resp = resp
             if resp.status_code != 429:
@@ -176,48 +186,56 @@ class ZeppAPI:
 
             sleep_s = min(8.0, math.pow(2, attempt)) + random.uniform(0.1, 0.9)
             self.log(f"请求被限流(429)，{attempt + 1}/{max_retries} 次，{sleep_s:.1f}s 后重试: {url}")
+            if use_proxy and self.use_proxy:
+                self._fetch_proxy()
             time.sleep(sleep_s)
 
         return last_resp
 
-    def _curl_request(self, method: str, url: str, use_proxy=True, **kwargs):
-        """使用 curl_cffi 发送请求（模拟 Chrome TLS 指纹）"""
+    def _tls_request(self, method: str, url: str, use_proxy=True, **kwargs):
+        """使用 tls-client 发送请求（支持代理）。"""
         # 处理 data 参数
         data = kwargs.get('data')
         if data is not None and isinstance(data, dict):
             kwargs['data'] = urllib.parse.urlencode(data)
 
-        # 处理 timeout - 代理连接需要更长超时
+        # 处理 timeout
         timeout = kwargs.pop('timeout', 30)
-        kwargs.setdefault('timeout', timeout)
+        kwargs.setdefault('timeout_seconds', timeout)
 
         # 处理 allow_redirects
         allow_redirects = kwargs.pop('allow_redirects', True)
         kwargs['allow_redirects'] = allow_redirects
 
-        # 处理代理 (curl_cffi 使用 proxies 字典)
+        if self._tls_session is None:
+            self._tls_session = tls_client.Session(
+                client_identifier="chrome112",
+                random_tls_extension_order=True
+            )
+
+        method_upper = method.upper()
+
+        def _send_with(extra_kwargs: dict):
+            merged = {**kwargs, **extra_kwargs}
+            if method_upper == 'GET':
+                return self._tls_session.get(url, **merged)
+            if method_upper == 'POST':
+                return self._tls_session.post(url, **merged)
+            return self._tls_session.execute_request(method_upper, url, **merged)
+
         if use_proxy and self.use_proxy and self.proxy_url:
-            kwargs['proxies'] = {
-                'http': self.proxy_url,
-                'https': self.proxy_url
-            }
-            # 使用代理时跳过SSL验证（代理可能使用自签名证书）
-            kwargs['verify'] = False
+            # 优先使用 tls-client 的 proxy 参数，不兼容时回退为 proxies。
+            try:
+                return _send_with({'proxy': self.proxy_url})
+            except TypeError:
+                return _send_with({'proxies': {'http': self.proxy_url, 'https': self.proxy_url}})
 
-        # 使用 curl_cffi 发送请求，impersonate 参数模拟 Chrome
-        if method.upper() == 'GET':
-            resp = curl_requests.get(url, impersonate="chrome120", **kwargs)
-        elif method.upper() == 'POST':
-            resp = curl_requests.post(url, impersonate="chrome120", **kwargs)
-        else:
-            resp = curl_requests.request(method, url, impersonate="chrome120", **kwargs)
-
-        return resp
+        return _send_with({})
 
     def _request(self, method: str, url: str, use_proxy=True, **kwargs):
-        """通用请求方法，自动选择 curl_cffi 或 requests"""
+        """通用请求方法，自动选择 tls-client 或 requests"""
         if self.use_tls:
-            return self._curl_request(method, url, use_proxy=use_proxy, **kwargs)
+            return self._tls_request(method, url, use_proxy=use_proxy, **kwargs)
         else:
             # 普通请求也支持代理
             if use_proxy and self.use_proxy and self.proxy_url:
@@ -409,6 +427,10 @@ class ZeppAPI:
             }
         """
         try:
+            # 验证码接口对代理质量敏感，每次请求前刷新代理，避免重复命中坏节点
+            if self.use_proxy:
+                self._fetch_proxy()
+
             random_num = self._captcha_random_suffix()
 
             url = f"https://api-user.huami.com/captcha/{captcha_type}?random={random_num}"
@@ -1088,7 +1110,7 @@ def bindband(user: str, password: str, step: int = 1, verbose: bool = False, use
     Returns:
         dict: {'success': bool, 'userid': str, 'message': str}
     """
-    # 绑定接口固定普通请求：不启用代理，不启用 curl_cffi
+    # 绑定接口固定普通请求：不启用代理，不启用 TLS 客户端
     api = ZeppAPI(verbose=verbose, use_tls=False, use_proxy=False, enable_spoof_ip=False)
     return api.bindband_via_api(user, password, step)
 

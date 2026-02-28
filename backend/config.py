@@ -60,8 +60,8 @@ ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "ai-step-admin-secret-key-2024"
 PROXY_API_URL = os.getenv("PROXY_API_URL", "https://api.nstproxy.com/api/v1/generate/apiproxies?count=1&country=ANY&protocol=http&sessionDuration=10&channelId=195AC9985799B5C8&format=1&fType=1&lfType=1&token=NSTPROXY-FB06CE564778C53CF991346F612E200B")
 USE_PROXY = os.getenv("USE_PROXY", "true").lower() in ("1", "true", "yes", "on")
 # 模式开关：
-# true  = 使用现有流程（Zepp登录 + 可选代理 + token 刷步）
-# false = 仅注册使用代理；绑定/刷步走第三方直连接口（nan.run）
+# true  = Zepp刷步流程使用代理
+# false = Zepp刷步流程不使用代理（注册仍强制使用代理）
 USE_PROXY_MODE = os.getenv("USE_PROXY_MODE", "true").lower() in ("1", "true", "yes", "on")
 
 # AI System Prompt

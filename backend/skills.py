@@ -484,76 +484,59 @@ class StepSkills:
         if not user or not user.zepp_email:
             return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
 
-        if USE_PROXY_MODE and user.bind_status != 1:
+        if user.bind_status != 1:
             return {'success': False, 'message': f'您还没有绑定设备，请先完成绑定。{self._bind_guide_text()}'}
 
         # 检查会员状态
         if not user.vip_expire_at or user.vip_expire_at < datetime.now():
             return {'success': False, 'message': '您的会员已过期，请充值后继续使用。回复"充值"了解详情。'}
 
-        if USE_PROXY_MODE:
-            # 使用 Zepp API 刷步（原有流程）
-            api = ZeppAPI(user.zepp_email, user.zepp_password, verbose=APP_DEBUG, use_proxy=USE_PROXY)
-            api.userid = user.zepp_userid
+        # 刷步统一使用 Zepp API（不走第三方接口）
+        api = ZeppAPI(
+            user.zepp_email,
+            user.zepp_password,
+            verbose=APP_DEBUG,
+            use_proxy=USE_PROXY if USE_PROXY_MODE else False
+        )
+        api.userid = user.zepp_userid
 
-            # 检查是否有缓存的token
+        # 检查是否有缓存的token
+        need_login = True
+        if user.login_token and user.app_token and user.token_updated_at:
+            # Token在24小时内有效
+            from datetime import timedelta
+            if datetime.now() - user.token_updated_at < timedelta(hours=24):
+                api.login_token = user.login_token
+                api.app_token = user.app_token
+                need_login = False
+                self._log(f"使用缓存的token，更新时间: {user.token_updated_at}")
+
+        # 先尝试用缓存token刷步
+        result = api.update_step(steps)
+
+        # 如果失败且使用了缓存token，可能是token过期，重新登录
+        if not result['success'] and not need_login:
+            self._log("缓存token可能已过期，重新登录")
             need_login = True
-            if user.login_token and user.app_token and user.token_updated_at:
-                # Token在24小时内有效
-                from datetime import timedelta
-                if datetime.now() - user.token_updated_at < timedelta(hours=24):
-                    api.login_token = user.login_token
-                    api.app_token = user.app_token
-                    need_login = False
-                    self._log(f"使用缓存的token，更新时间: {user.token_updated_at}")
+            api.login_token = None
+            api.app_token = None
 
-            # 先尝试用缓存token刷步
+        # 需要重新登录
+        if need_login:
             result = api.update_step(steps)
 
-            # 如果失败且使用了缓存token，可能是token过期，重新登录
-            if not result['success'] and not need_login:
-                self._log("缓存token可能已过期，重新登录")
-                need_login = True
-                api.login_token = None
-                api.app_token = None
-
-            # 需要重新登录
-            if need_login:
-                result = api.update_step(steps)
-
-            # 保存token到数据库
-            if api.login_token and api.app_token:
-                db = SessionLocal()
-                try:
-                    user.login_token = api.login_token
-                    user.app_token = api.app_token
-                    user.token_updated_at = datetime.now()
-                    db.merge(user)
-                    db.commit()
-                    self._log("Token已缓存")
-                finally:
-                    db.close()
-        else:
-            # 关闭代理模式后，刷步直接走第三方接口：apikey + 账号 + 密码 + 步数
-            result = bindband(
-                user.zepp_email,
-                user.zepp_password,
-                step=steps,
-                verbose=APP_DEBUG,
-                use_proxy=False
-            )
-
-            # 直连模式刷步成功后，视为已完成设备绑定
-            if result.get('success') and user.bind_status != 1:
-                db = SessionLocal()
-                try:
-                    db_user = db.query(User).filter(User.user_key == user_key).first()
-                    if db_user:
-                        db_user.bind_status = 1
-                        db.merge(db_user)
-                        db.commit()
-                finally:
-                    db.close()
+        # 保存token到数据库
+        if api.login_token and api.app_token:
+            db = SessionLocal()
+            try:
+                user.login_token = api.login_token
+                user.app_token = api.app_token
+                user.token_updated_at = datetime.now()
+                db.merge(user)
+                db.commit()
+                self._log("Token已缓存")
+            finally:
+                db.close()
 
         # 记录刷步历史
         db = SessionLocal()
