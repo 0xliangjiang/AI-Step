@@ -187,7 +187,7 @@ class StepSkills:
         register_name = email
 
         # 注册流程强制使用代理
-        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=True)
+        api = ZeppAPI(verbose=APP_DEBUG, use_tls=False, use_proxy=True)
         last_error = ""
         self._log(f"开始注册流程 user_key={user_key}, retry_times={CAPTCHA_RETRY_TIMES}")
 
@@ -250,7 +250,7 @@ class StepSkills:
         self._log(f"使用人工验证码继续注册 user_key={user_key}")
 
         # 注册流程强制使用代理
-        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=True)
+        api = ZeppAPI(verbose=APP_DEBUG, use_tls=False, use_proxy=True)
         reg_result = api.register_account(
             pending['email'],
             pending['password'],

@@ -250,7 +250,7 @@ async def batch_register(request: BatchRegisterRequest, _: str = Depends(verify_
         register_name = email
 
         # 注册流程强制使用代理
-        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=True)
+        api = ZeppAPI(verbose=APP_DEBUG, use_tls=False, use_proxy=True)
         success = False
         user_data = None
 
