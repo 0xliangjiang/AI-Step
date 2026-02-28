@@ -46,6 +46,7 @@
         </div>
 
         <div class="card-form">
+          <p v-if="error" class="error-msg">{{ error }}</p>
           <div class="input-group">
             <label>卡密</label>
             <input
@@ -106,7 +107,8 @@ export default {
   data() {
     return {
       userKey: '',
-      loading: false
+      loading: false,
+      error: ''
     }
   },
   mounted() {
@@ -118,8 +120,10 @@ export default {
   },
   methods: {
     async login(silent = false) {
+      this.error = ''
+
       if (!this.userKey.trim()) {
-        if (!silent) alert('请输入卡密')
+        if (!silent) this.error = '请输入卡密'
         return
       }
 
@@ -136,7 +140,7 @@ export default {
       } catch (error) {
         localStorage.removeItem('userKey')
         const msg = error?.response?.data?.detail || '登录失败，请检查卡密后重试'
-        if (!silent) alert(msg)
+        this.error = silent ? '缓存卡密已失效，请重新输入卡密' : msg
       } finally {
         this.loading = false
       }
@@ -260,6 +264,15 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.error-msg {
+  color: #d93025;
+  font-size: 13px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fdecea;
 }
 
 .input-group {

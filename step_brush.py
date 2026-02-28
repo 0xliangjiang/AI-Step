@@ -63,7 +63,15 @@ def get_access_token(location: str) -> str:
 class ZeppAPI:
     """Zepp Life API 封装类"""
 
-    def __init__(self, user: str = None, password: str = None, verbose: bool = False, use_tls: bool = True, use_proxy: bool = False):
+    def __init__(
+        self,
+        user: str = None,
+        password: str = None,
+        verbose: bool = False,
+        use_tls: bool = True,
+        use_proxy: bool = False,
+        enable_spoof_ip: bool = True
+    ):
         self.user = None
         self.password = password
         self.verbose = verbose
@@ -74,6 +82,7 @@ class ZeppAPI:
         self.use_proxy = use_proxy
         self.proxy_url = None
         self.use_tls = use_tls and CURL_CFFI_AVAILABLE
+        self.enable_spoof_ip = enable_spoof_ip
 
         # 如果启用代理，获取代理
         if self.use_proxy:
@@ -250,8 +259,9 @@ class ZeppAPI:
                 "x-hm-ekv": "1",
                 "hm-privacy-ceip": "false"
             }
-            headers1, fake_ip1 = self._add_spoof_ip_headers(headers1)
-            self.log(f"[步骤1] 伪装IP: {fake_ip1}")
+            if self.enable_spoof_ip:
+                headers1, fake_ip1 = self._add_spoof_ip_headers(headers1)
+                self.log(f"[步骤1] 伪装IP: {fake_ip1}")
 
             login_data = {
                 'emailOrPhone': self.user,
@@ -294,8 +304,9 @@ class ZeppAPI:
                 "appplatform": "android_phone",
                 "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
             }
-            headers2, fake_ip2 = self._add_spoof_ip_headers(headers2)
-            self.log(f"[步骤2] 伪装IP: {fake_ip2}")
+            if self.enable_spoof_ip:
+                headers2, fake_ip2 = self._add_spoof_ip_headers(headers2)
+                self.log(f"[步骤2] 伪装IP: {fake_ip2}")
 
             if self.is_phone:
                 data2 = {
@@ -357,8 +368,9 @@ class ZeppAPI:
         """获取app_token"""
         url = f"https://account-cn.huami.com/v1/client/app_tokens?app_name=com.xiaomi.hm.health&dn=api-user.huami.com,api-mifit.huami.com,app-analytics.huami.com&login_token={login_token}"
         headers = {'User-Agent': 'MiFit/5.3.0 (iPhone; iOS 14.7.1; Scale/3.00)'}
-        headers, fake_ip3 = self._add_spoof_ip_headers(headers)
-        self.log(f"[步骤3] 伪装IP: {fake_ip3}")
+        if self.enable_spoof_ip:
+            headers, fake_ip3 = self._add_spoof_ip_headers(headers)
+            self.log(f"[步骤3] 伪装IP: {fake_ip3}")
         self.log(f"[步骤3] 请求: GET app_token")
         response = self._request("GET", url, headers=headers, timeout=15)
         self.log(f"[步骤3] 响应状态码: {response.status_code}")
@@ -1077,7 +1089,7 @@ def bindband(user: str, password: str, step: int = 1, verbose: bool = False, use
         dict: {'success': bool, 'userid': str, 'message': str}
     """
     # 绑定接口固定普通请求：不启用代理，不启用 curl_cffi
-    api = ZeppAPI(verbose=verbose, use_tls=False, use_proxy=False)
+    api = ZeppAPI(verbose=verbose, use_tls=False, use_proxy=False, enable_spoof_ip=False)
     return api.bindband_via_api(user, password, step)
 
 
@@ -1097,7 +1109,7 @@ def check_bindstatus(userid: str, verbose: bool = False, use_proxy: bool = False
             'message': str
         }
     """
-    api = ZeppAPI(verbose=verbose, use_proxy=use_proxy)
+    api = ZeppAPI(verbose=verbose, use_tls=False, use_proxy=False, enable_spoof_ip=False)
     return api.check_bind_status(userid)
 
 

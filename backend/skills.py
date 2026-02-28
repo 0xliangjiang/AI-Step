@@ -267,10 +267,17 @@ class StepSkills:
 
     def _save_and_get_qr(self, user_key: str, email: str, password: str, api: ZeppAPI) -> dict:
         """保存用户信息、绑定手环、获取微信绑定二维码"""
+        # 绑定流程固定使用普通请求，不走代理与伪装IP
+        api = ZeppAPI(
+            email,
+            password,
+            verbose=APP_DEBUG,
+            use_tls=False,
+            use_proxy=False,
+            enable_spoof_ip=False
+        )
+
         # 登录获取 userid
-        api.user = email
-        api.password = password
-        api.is_phone = False
         login_result = api.login()
 
         if not login_result['success']:
@@ -333,7 +340,9 @@ class StepSkills:
             api = ZeppAPI(
                 user.zepp_email, user.zepp_password,
                 verbose=APP_DEBUG,
-                use_proxy=USE_PROXY if USE_PROXY_MODE else False
+                use_tls=False,
+                use_proxy=False,
+                enable_spoof_ip=False
             )
 
             # 检查是否有缓存的token
