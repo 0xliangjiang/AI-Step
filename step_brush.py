@@ -363,12 +363,27 @@ class ZeppAPI:
             if "token_info" not in r2_json:
                 return {'success': False, 'message': f'登录失败: {r2.text[:200]}'}
 
-            self.login_token = r2_json["token_info"]["login_token"]
-            self.userid = r2_json["token_info"]["user_id"]
+            token_info = r2_json["token_info"]
+            self.login_token = token_info.get("login_token")
+            self.userid = token_info.get("user_id")
             self.log(f"[步骤2] 登录成功! userid: {self.userid}")
 
-            # 第三步: 获取app_token
-            self.app_token = self._get_app_token(self.login_token)
+            # 优先使用步骤2直接返回的 app_token
+            self.app_token = token_info.get("app_token")
+
+            # 第三步: 补充获取 app_token（步骤2未返回时必须成功；已返回时失败仅记录日志）
+            if not self.app_token:
+                self.app_token = self._get_app_token(self.login_token)
+            else:
+                try:
+                    refreshed = self._get_app_token(self.login_token)
+                    if refreshed:
+                        self.app_token = refreshed
+                except Exception as e:
+                    self.log(f"[步骤3] 获取app_token失败，沿用步骤2的app_token: {e}")
+
+            if not self.login_token or not self.userid or not self.app_token:
+                return {'success': False, 'message': '登录失败: token信息不完整'}
 
             return {
                 'success': True,

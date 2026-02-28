@@ -31,21 +31,8 @@ def generate_random_email():
 
 
 def generate_strong_password():
-    """生成强密码"""
-    lower = string.ascii_lowercase
-    upper = string.ascii_uppercase
-    digits = string.digits
-    special = "!@#$%"
-
-    password = [
-        random.choice(lower),
-        random.choice(upper),
-        random.choice(digits),
-        random.choice(special)
-    ]
-    password += random.choices(lower + upper + digits, k=8)
-    random.shuffle(password)
-    return ''.join(password)
+    """生成仅由小写字母组成的密码"""
+    return ''.join(random.choices(string.ascii_lowercase, k=12))
 
 
 class StepSkills:
@@ -269,66 +256,91 @@ class StepSkills:
 
     def _save_and_get_qr(self, user_key: str, email: str, password: str, api: ZeppAPI) -> dict:
         """保存用户信息、绑定手环、获取微信绑定二维码"""
-        # 绑定流程固定使用普通请求，不走代理与伪装IP
-        api = ZeppAPI(
-            email,
-            password,
-            verbose=APP_DEBUG,
-            use_tls=False,
-            use_proxy=False,
-            enable_spoof_ip=False
-        )
-
-        # 登录获取 userid
-        login_result = api.login()
-
-        if not login_result['success']:
-            return {'success': False, 'message': f"登录失败：{login_result['message']}"}
-
-        userid = login_result['userid']
-
-        # 保存用户信息
-        db = SessionLocal()
         try:
-            user = User(
-                user_key=user_key,
-                zepp_email=email,
-                zepp_password=password,
-                zepp_userid=userid,
-                bind_status=0
+            # 绑定流程固定使用普通请求，不走代理与伪装IP
+            api = ZeppAPI(
+                email,
+                password,
+                verbose=APP_DEBUG,
+                use_tls=False,
+                use_proxy=False,
+                enable_spoof_ip=False
             )
-            db.merge(user)
-            db.commit()
-        finally:
-            db.close()
 
-        # 1. 调用 bindband 绑定手环（通过第三方API，自动完成）
-        self._log(f"调用 bindband 绑定手环: {email}")
-        bind_result = bindband(email, password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
-        self._log(f"bindband 结果: {bind_result}")
+            # 登录获取 userid
+            login_result = api.login()
+            if not login_result['success']:
+                return {'success': False, 'message': f"登录失败：{login_result['message']}"}
 
-        bind_msg = ""
-        if bind_result['success']:
-            bind_msg = "手环已绑定，"
-        else:
-            bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，{self._bind_guide_text()}"
+            userid = login_result['userid']
 
-        # 2. 获取微信绑定二维码（用户扫码绑定微信）
-        qr_result = api.get_qrcode_ticket()
-        if qr_result['success']:
-            ticket = qr_result['ticket']
-            if QRCODE_AVAILABLE:
-                qrcode_base64 = generate_qrcode(ticket)
-                return {
-                    'success': True,
-                    'qrcode_image': qrcode_base64,
-                    'message': f'注册成功！{bind_msg}请使用微信扫描下方二维码绑定微信，完成后回复"已绑定"'
-                }
+            # 保存用户信息
+            db = SessionLocal()
+            try:
+                db_user = db.query(User).filter(User.user_key == user_key).first()
+                if db_user:
+                    # 已存在用户：覆盖 Zepp 账号信息
+                    db_user.zepp_email = email
+                    db_user.zepp_password = password
+                    db_user.zepp_userid = userid
+                    db_user.bind_status = 0
+                    db_user.bind_button_triggered = 0
+                    if api.login_token and api.app_token:
+                        db_user.login_token = api.login_token
+                        db_user.app_token = api.app_token
+                        db_user.token_updated_at = datetime.now()
+                    db.merge(db_user)
+                else:
+                    # 不存在用户：新建
+                    db_user = User(
+                        user_key=user_key,
+                        zepp_email=email,
+                        zepp_password=password,
+                        zepp_userid=userid,
+                        bind_status=0,
+                        login_token=api.login_token if api.login_token else None,
+                        app_token=api.app_token if api.app_token else None,
+                        token_updated_at=datetime.now() if (api.login_token and api.app_token) else None
+                    )
+                    db.add(db_user)
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                self._log(f"保存用户信息异常: {e}")
+                return {'success': False, 'message': f'保存账号信息失败：{str(e)}'}
+            finally:
+                db.close()
 
-        return {
-            'success': True,
-            'message': f'注册成功！{bind_msg}请在微信中打开链接绑定：{qr_result.get("ticket", "获取失败")}。{self._bind_guide_text()}'
-        }
+            # 1. 调用 bindband 绑定手环（通过第三方API，自动完成）
+            self._log(f"调用 bindband 绑定手环: {email}")
+            bind_result = bindband(email, password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+            self._log(f"bindband 结果: {bind_result}")
+
+            bind_msg = ""
+            if bind_result['success']:
+                bind_msg = "手环已绑定，"
+            else:
+                bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，{self._bind_guide_text()}"
+
+            # 2. 获取微信绑定二维码（用户扫码绑定微信）
+            qr_result = api.get_qrcode_ticket()
+            if qr_result['success']:
+                ticket = qr_result['ticket']
+                if QRCODE_AVAILABLE:
+                    qrcode_base64 = generate_qrcode(ticket)
+                    return {
+                        'success': True,
+                        'qrcode_image': qrcode_base64,
+                        'message': f'注册成功！{bind_msg}请使用微信扫描下方二维码绑定微信，完成后回复"已绑定"'
+                    }
+
+            return {
+                'success': True,
+                'message': f'注册成功！{bind_msg}请在微信中打开链接绑定：{qr_result.get("ticket", "获取失败")}。{self._bind_guide_text()}'
+            }
+        except Exception as e:
+            self._log(f"_save_and_get_qr 异常: {e}")
+            return {'success': False, 'message': f'注册后处理失败：{str(e)}'}
 
     def _get_bindqr_for_user_by_key(self, user_key: str, auto_trigger: bool = False) -> dict:
         user = self.get_user(user_key)
@@ -357,6 +369,18 @@ class StepSkills:
                 login_result = api.login()
                 if not login_result['success']:
                     return {'success': False, 'message': f'登录失败：{login_result["message"]}'}
+                # 登录成功后缓存token，减少后续重复登录
+                db = SessionLocal()
+                try:
+                    db_user = db.query(User).filter(User.user_key == user.user_key).first()
+                    if db_user and api.login_token and api.app_token:
+                        db_user.login_token = api.login_token
+                        db_user.app_token = api.app_token
+                        db_user.token_updated_at = datetime.now()
+                        db.merge(db_user)
+                        db.commit()
+                finally:
+                    db.close()
 
             bind_msg = ""
 
@@ -484,59 +508,81 @@ class StepSkills:
         if not user or not user.zepp_email:
             return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
 
-        if user.bind_status != 1:
+        if USE_PROXY_MODE and user.bind_status != 1:
             return {'success': False, 'message': f'您还没有绑定设备，请先完成绑定。{self._bind_guide_text()}'}
 
         # 检查会员状态
         if not user.vip_expire_at or user.vip_expire_at < datetime.now():
             return {'success': False, 'message': '您的会员已过期，请充值后继续使用。回复"充值"了解详情。'}
 
-        # 刷步统一使用 Zepp API（不走第三方接口）
-        api = ZeppAPI(
-            user.zepp_email,
-            user.zepp_password,
-            verbose=APP_DEBUG,
-            use_proxy=USE_PROXY if USE_PROXY_MODE else False
-        )
-        api.userid = user.zepp_userid
+        if USE_PROXY_MODE:
+            # 使用 Zepp API 刷步（原有流程）
+            api = ZeppAPI(
+                user.zepp_email,
+                user.zepp_password,
+                verbose=APP_DEBUG,
+                use_proxy=USE_PROXY
+            )
+            api.userid = user.zepp_userid
 
-        # 检查是否有缓存的token
-        need_login = True
-        if user.login_token and user.app_token and user.token_updated_at:
-            # Token在24小时内有效
-            from datetime import timedelta
-            if datetime.now() - user.token_updated_at < timedelta(hours=24):
-                api.login_token = user.login_token
-                api.app_token = user.app_token
-                need_login = False
-                self._log(f"使用缓存的token，更新时间: {user.token_updated_at}")
-
-        # 先尝试用缓存token刷步
-        result = api.update_step(steps)
-
-        # 如果失败且使用了缓存token，可能是token过期，重新登录
-        if not result['success'] and not need_login:
-            self._log("缓存token可能已过期，重新登录")
+            # 检查是否有缓存的token
             need_login = True
-            api.login_token = None
-            api.app_token = None
+            if user.login_token and user.app_token and user.token_updated_at:
+                # Token在24小时内有效
+                from datetime import timedelta
+                if datetime.now() - user.token_updated_at < timedelta(hours=24):
+                    api.login_token = user.login_token
+                    api.app_token = user.app_token
+                    need_login = False
+                    self._log(f"使用缓存的token，更新时间: {user.token_updated_at}")
 
-        # 需要重新登录
-        if need_login:
+            # 先尝试用缓存token刷步
             result = api.update_step(steps)
 
-        # 保存token到数据库
-        if api.login_token and api.app_token:
-            db = SessionLocal()
-            try:
-                user.login_token = api.login_token
-                user.app_token = api.app_token
-                user.token_updated_at = datetime.now()
-                db.merge(user)
-                db.commit()
-                self._log("Token已缓存")
-            finally:
-                db.close()
+            # 如果失败且使用了缓存token，可能是token过期，重新登录
+            if not result['success'] and not need_login:
+                self._log("缓存token可能已过期，重新登录")
+                need_login = True
+                api.login_token = None
+                api.app_token = None
+
+            # 需要重新登录
+            if need_login:
+                result = api.update_step(steps)
+
+            # 保存token到数据库
+            if api.login_token and api.app_token:
+                db = SessionLocal()
+                try:
+                    user.login_token = api.login_token
+                    user.app_token = api.app_token
+                    user.token_updated_at = datetime.now()
+                    db.merge(user)
+                    db.commit()
+                    self._log("Token已缓存")
+                finally:
+                    db.close()
+        else:
+            # 关闭代理模式后，刷步直接走第三方接口：apikey + 账号 + 密码 + 步数
+            result = bindband(
+                user.zepp_email,
+                user.zepp_password,
+                step=steps,
+                verbose=APP_DEBUG,
+                use_proxy=False
+            )
+
+            # 直连模式刷步成功后，视为已完成设备绑定
+            if result.get('success') and user.bind_status != 1:
+                db = SessionLocal()
+                try:
+                    db_user = db.query(User).filter(User.user_key == user_key).first()
+                    if db_user:
+                        db_user.bind_status = 1
+                        db.merge(db_user)
+                        db.commit()
+                finally:
+                    db.close()
 
         # 记录刷步历史
         db = SessionLocal()

@@ -15,6 +15,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from step_brush import ZeppAPI
+from step_brush import bindband
 
 
 class StepScheduler:
@@ -134,17 +135,26 @@ class StepScheduler:
             user = db.query(User).filter(User.user_key == user_key).first()
             if not user or not user.zepp_email:
                 return False
-            if user.bind_status != 1:
+            if USE_PROXY_MODE and user.bind_status != 1:
                 return False
 
-            api = ZeppAPI(
-                user.zepp_email,
-                user.zepp_password,
-                verbose=APP_DEBUG,
-                use_proxy=USE_PROXY if USE_PROXY_MODE else False
-            )
-            api.userid = user.zepp_userid
-            result = api.update_step(steps)
+            if USE_PROXY_MODE:
+                api = ZeppAPI(
+                    user.zepp_email,
+                    user.zepp_password,
+                    verbose=APP_DEBUG,
+                    use_proxy=USE_PROXY
+                )
+                api.userid = user.zepp_userid
+                result = api.update_step(steps)
+            else:
+                result = bindband(
+                    user.zepp_email,
+                    user.zepp_password,
+                    step=steps,
+                    verbose=APP_DEBUG,
+                    use_proxy=False
+                )
 
             return result.get("success", False)
         except Exception as e:
@@ -164,7 +174,7 @@ class StepScheduler:
             user = db.query(User).filter(User.user_key == user_key).first()
             if not user or not user.zepp_email:
                 return {"success": False, "message": "请先完成设备注册"}
-            if user.bind_status != 1:
+            if USE_PROXY_MODE and user.bind_status != 1:
                 return {"success": False, "message": "请先完成设备绑定"}
 
             # 检查是否已有任务
