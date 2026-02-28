@@ -238,7 +238,7 @@ async def batch_register(request: BatchRegisterRequest, _: str = Depends(verify_
 
     from skills import generate_random_email, generate_strong_password
     from step_brush import ZeppAPI, QRCODE_AVAILABLE, generate_qrcode
-    from config import APP_DEBUG, CAPTCHA_RETRY_TIMES, USE_PROXY
+    from config import APP_DEBUG, CAPTCHA_RETRY_TIMES
 
     registered = 0
     failed = 0
@@ -249,8 +249,8 @@ async def batch_register(request: BatchRegisterRequest, _: str = Depends(verify_
         password = generate_strong_password()
         register_name = email
 
-        # 启用代理
-        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        # 注册流程强制使用代理
+        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=True)
         success = False
         user_data = None
 

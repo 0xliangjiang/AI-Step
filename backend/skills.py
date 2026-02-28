@@ -186,7 +186,8 @@ class StepSkills:
         password = generate_strong_password()
         register_name = email
 
-        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        # 注册流程强制使用代理
+        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=True)
         last_error = ""
         self._log(f"开始注册流程 user_key={user_key}, retry_times={CAPTCHA_RETRY_TIMES}")
 
@@ -248,7 +249,8 @@ class StepSkills:
             return {'success': False, 'message': '验证码已过期，请重新开始注册'}
         self._log(f"使用人工验证码继续注册 user_key={user_key}")
 
-        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        # 注册流程强制使用代理
+        api = ZeppAPI(verbose=APP_DEBUG, use_proxy=True)
         reg_result = api.register_account(
             pending['email'],
             pending['password'],

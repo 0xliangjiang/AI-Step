@@ -57,7 +57,7 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "ai-step-admin-secret-key-2024")
 
 # 代理配置
-PROXY_API_URL = os.getenv("PROXY_API_URL", "http://api.xiequ.cn/VAD/GetIp.aspx?act=get&uid=163321&vkey=ED64ED34190DD300FA13E08A8191ADF8&num=1&time=30&plat=1&re=0&type=2&so=1&ow=1&spl=1&addr=&db=1")
+PROXY_API_URL = os.getenv("PROXY_API_URL", "https://api.nstproxy.com/api/v1/generate/apiproxies?count=1&country=ANY&protocol=http&sessionDuration=10&channelId=195AC9985799B5C8&format=1&fType=1&lfType=1&token=NSTPROXY-FB06CE564778C53CF991346F612E200B")
 USE_PROXY = os.getenv("USE_PROXY", "true").lower() in ("1", "true", "yes", "on")
 # 模式开关：
 # true  = 使用现有流程（Zepp登录 + 可选代理 + token 刷步）
