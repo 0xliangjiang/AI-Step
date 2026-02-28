@@ -58,6 +58,11 @@ class StepSkills:
         if APP_DEBUG:
             print(f"[StepSkills] {msg}")
 
+    @staticmethod
+    def _bind_guide_text() -> str:
+        """统一的绑定引导文案。"""
+        return '可发送"绑定手环"重试手环绑定；发送"绑定微信"获取新二维码重新扫码；完成后回复"已绑定"。'
+
     def _trigger_bind_button_once(self, user_key: str) -> bool:
         """登录成功后仅触发一次后台绑定动作。"""
         db = SessionLocal()
@@ -297,7 +302,7 @@ class StepSkills:
         if bind_result['success']:
             bind_msg = "手环已绑定，"
         else:
-            bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，"
+            bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，{self._bind_guide_text()}"
 
         # 2. 获取微信绑定二维码（用户扫码绑定微信）
         qr_result = api.get_qrcode_ticket()
@@ -313,7 +318,7 @@ class StepSkills:
 
         return {
             'success': True,
-            'message': f'注册成功！{bind_msg}请在微信中打开链接绑定：{qr_result.get("ticket", "获取失败")}'
+            'message': f'注册成功！{bind_msg}请在微信中打开链接绑定：{qr_result.get("ticket", "获取失败")}。{self._bind_guide_text()}'
         }
 
     def _get_bindqr_for_user_by_key(self, user_key: str, auto_trigger: bool = False) -> dict:
@@ -351,7 +356,7 @@ class StepSkills:
                 if bind_result.get("success"):
                     bind_msg = "手环已绑定，"
                 else:
-                    bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，"
+                    bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，{self._bind_guide_text()}"
 
             # 2. 获取微信绑定二维码（始终返回，让用户扫码绑定微信）
             qr_result = api.get_qrcode_ticket(api.userid)
@@ -410,7 +415,7 @@ class StepSkills:
 
         return {
             'success': False,
-            'message': f'手环绑定失败：{bind_result.get("message", "未知错误")}，请稍后重试'
+            'message': f'手环绑定失败：{bind_result.get("message", "未知错误")}。{self._bind_guide_text()}'
         }
 
     def check_bindstatus(self, user_key: str) -> dict:
@@ -455,7 +460,7 @@ class StepSkills:
         return {
             'success': True,
             'is_bound': False,
-            'message': '暂未检测到绑定，请确认已用微信扫码完成绑定后再试'
+            'message': f'暂未检测到绑定，请确认已用微信扫码完成绑定后再试。{self._bind_guide_text()}'
         }
 
     def brush_step(self, user_key: str, steps: int) -> dict:
@@ -469,7 +474,7 @@ class StepSkills:
             return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
 
         if USE_PROXY_MODE and user.bind_status != 1:
-            return {'success': False, 'message': '您还没有绑定设备，请先完成绑定'}
+            return {'success': False, 'message': f'您还没有绑定设备，请先完成绑定。{self._bind_guide_text()}'}
 
         # 检查会员状态
         if not user.vip_expire_at or user.vip_expire_at < datetime.now():
@@ -560,7 +565,10 @@ class StepSkills:
                 'message': f'刷步成功！已将步数修改为 {steps} 步'
             }
 
-        return {'success': False, 'message': f"刷步失败：{result['message']}"}
+        return {
+            'success': False,
+            'message': f"刷步失败：{result['message']}。{self._bind_guide_text()}"
+        }
 
     def check_vip(self, user_key: str) -> dict:
         """检查会员状态"""

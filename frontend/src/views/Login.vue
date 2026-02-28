@@ -42,16 +42,16 @@
       <div class="login-card">
         <div class="card-header">
           <h2>立即开始</h2>
-          <p>输入任意标识即可使用</p>
+          <p>请输入卡密进入系统</p>
         </div>
 
         <div class="card-form">
           <div class="input-group">
-            <label>用户标识</label>
+            <label>卡密</label>
             <input
               v-model="userKey"
               type="text"
-              placeholder="手机号 / 昵称 / 任意标识"
+              placeholder="请输入卡密"
               @keyup.enter="login"
             />
           </div>
@@ -63,7 +63,7 @@
         </div>
 
         <div class="card-footer">
-          <p>首次使用自动注册，赠送3天会员</p>
+          <p>卡密首次验证后会本地缓存，下次自动登录</p>
         </div>
       </div>
 
@@ -73,7 +73,7 @@
         <div class="guide-steps">
           <div class="step">
             <span class="step-num">1</span>
-            <span class="step-text">输入标识登录系统</span>
+            <span class="step-text">输入卡密登录系统</span>
           </div>
           <div class="step">
             <span class="step-num">2</span>
@@ -109,10 +109,17 @@ export default {
       loading: false
     }
   },
+  mounted() {
+    const cachedUserKey = localStorage.getItem('userKey')
+    if (cachedUserKey) {
+      this.userKey = cachedUserKey
+      this.login(true)
+    }
+  },
   methods: {
-    async login() {
+    async login(silent = false) {
       if (!this.userKey.trim()) {
-        alert('请输入您的标识')
+        if (!silent) alert('请输入卡密')
         return
       }
 
@@ -127,7 +134,9 @@ export default {
           this.$router.push('/chat')
         }
       } catch (error) {
-        alert('登录失败，请重试')
+        localStorage.removeItem('userKey')
+        const msg = error?.response?.data?.detail || '登录失败，请检查卡密后重试'
+        if (!silent) alert(msg)
       } finally {
         this.loading = false
       }

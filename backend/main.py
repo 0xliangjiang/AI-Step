@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from models import init_db, User, SessionLocal
+from models import init_db, User, Card, SessionLocal
 from ai_client import ai_client
 from admin import router as admin_router, init_admin
 from config import FREE_DAYS
@@ -65,13 +65,18 @@ async def startup():
 
 @app.post("/api/user/login")
 async def user_login(request: LoginRequest):
-    """用户登录/注册"""
+    """用户登录/注册（卡密作为用户标识）"""
     user_key = request.user_key.strip()
     if not user_key:
-        raise HTTPException(status_code=400, detail="用户标识不能为空")
+        raise HTTPException(status_code=400, detail="卡密不能为空")
 
     db = SessionLocal()
     try:
+        # 访问控制：必须是已存在的卡密
+        card = db.query(Card).filter(Card.card_key == user_key).first()
+        if not card:
+            raise HTTPException(status_code=403, detail="卡密无效，请输入正确卡密")
+
         user = db.query(User).filter(User.user_key == user_key).first()
 
         if not user:
