@@ -6,7 +6,9 @@ import random
 import string
 import sys
 import os
+import time
 from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 
 # 添加父目录到路径，以便导入 step_brush
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -16,10 +18,10 @@ from step_brush import (
     bindband, check_bindstatus,
     DDDDOCR_AVAILABLE, QRCODE_AVAILABLE
 )
-from models import User, StepRecord, Card, SessionLocal
+from models import User, StepRecord, Card, SessionLocal, get_db_session
 from config import (
     CAPTCHA_RETRY_TIMES, MIN_STEPS, MAX_STEPS, ERROR_MESSAGE,
-    APP_DEBUG, USE_PROXY, USE_PROXY_MODE
+    APP_DEBUG, USE_PROXY, USE_PROXY_MODE, CAPTCHA_PENDING_EXPIRE
 )
 
 
@@ -39,11 +41,23 @@ class StepSkills:
     """刷步相关 Skills"""
 
     def __init__(self):
-        self.pending_captcha = {}  # 存储待验证的验证码信息 {user_key: {key, image_base64}}
+        # 存储待验证的验证码信息 {user_key: {key, image_base64, timestamp}}
+        self.pending_captcha: Dict[str, Dict[str, Any]] = {}
 
     def _log(self, msg: str):
         if APP_DEBUG:
             print(f"[StepSkills] {msg}")
+
+    def _cleanup_expired_captcha(self):
+        """清理过期的验证码pending记录"""
+        now = time.time()
+        expired_keys = [
+            k for k, v in self.pending_captcha.items()
+            if now - v.get('timestamp', 0) > CAPTCHA_PENDING_EXPIRE
+        ]
+        for k in expired_keys:
+            del self.pending_captcha[k]
+            self._log(f"已清理过期验证码记录: {k}")
 
     @staticmethod
     def _bind_guide_text() -> str:
@@ -52,83 +66,83 @@ class StepSkills:
 
     def _trigger_bind_button_once(self, user_key: str) -> bool:
         """登录成功后仅触发一次后台绑定动作。"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             user = db.query(User).filter(User.user_key == user_key).first()
             if not user:
                 return False
             if user.bind_status == 1 or user.bind_button_triggered == 1:
                 return False
             user.bind_button_triggered = 1
-            db.merge(user)
-            db.commit()
             self._log(f"后台绑定动作首次触发: user_key={user_key}")
             return True
-        finally:
-            db.close()
 
-    def get_user(self, user_key: str) -> User:
-        """获取用户信息"""
-        db = SessionLocal()
-        try:
-            return db.query(User).filter(User.user_key == user_key).first()
-        finally:
-            db.close()
+    def get_user(self, user_key: str) -> Optional[Dict[str, Any]]:
+        """获取用户信息（返回字典，避免会话分离问题）"""
+        with get_db_session() as db:
+            user = db.query(User).filter(User.user_key == user_key).first()
+            if user:
+                # 在会话内访问所有属性，返回字典
+                return {
+                    'user_key': user.user_key,
+                    'zepp_email': user.zepp_email,
+                    'zepp_password': user.zepp_password,
+                    'zepp_userid': user.zepp_userid,
+                    'bind_status': user.bind_status,
+                    'bind_button_triggered': user.bind_button_triggered,
+                    'vip_expire_at': user.vip_expire_at,
+                    'login_token': user.login_token,
+                    'app_token': user.app_token,
+                    'token_updated_at': user.token_updated_at,
+                }
+            return None
+
+    def get_user_object(self, user_key: str) -> Optional[User]:
+        """获取用户ORM对象（仅用于在同一会话内操作）"""
+        with get_db_session() as db:
+            user = db.query(User).filter(User.user_key == user_key).first()
+            return user
 
     def save_user(self, user: User):
         """保存用户信息"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             db.merge(user)
-            db.commit()
-        finally:
-            db.close()
 
-    def _get_available_account(self) -> User:
+    def _get_available_account(self) -> Optional[User]:
         """从账户池获取一个可用账户（user_key 为空）"""
-        db = SessionLocal()
-        try:
-            # 查找 user_key 为空的账户
+        with get_db_session() as db:
             return db.query(User).filter(User.user_key.is_(None)).first()
-        finally:
-            db.close()
 
     def _assign_account_to_user(self, user_key: str, account: User) -> dict:
         """将账户分配给用户"""
-        db = SessionLocal()
         try:
-            # 检查用户是否已存在
-            existing_user = db.query(User).filter(User.user_key == user_key).first()
+            with get_db_session() as db:
+                # 检查用户是否已存在
+                existing_user = db.query(User).filter(User.user_key == user_key).first()
 
-            if existing_user:
-                # 用户已存在，将账户信息复制到现有用户
-                existing_user.zepp_email = account.zepp_email
-                existing_user.zepp_password = account.zepp_password
-                existing_user.zepp_userid = account.zepp_userid
-                existing_user.bind_status = account.bind_status
-                db.commit()
-                # 删除账户池中的记录
-                db.delete(account)
-                db.commit()
-                self._log(f"已将账户 {account.zepp_email} 绑定到现有用户 {user_key}")
+                if existing_user:
+                    # 用户已存在，将账户信息复制到现有用户
+                    existing_user.zepp_email = account.zepp_email
+                    existing_user.zepp_password = account.zepp_password
+                    existing_user.zepp_userid = account.zepp_userid
+                    existing_user.bind_status = account.bind_status
+                    # 删除账户池中的记录
+                    db.delete(account)
+                    self._log(f"已将账户 {account.zepp_email} 绑定到现有用户 {user_key}")
+                    db.flush()  # 确保删除操作生效
 
-                # 登录成功后触发一次后台绑定
-                return self._get_bindqr_for_user(existing_user, auto_trigger=True)
-            else:
-                # 用户不存在，直接更新账户的 user_key
-                account.user_key = user_key
-                db.merge(account)
-                db.commit()
-                self._log(f"已将账户 {account.zepp_email} 分配给新用户 {user_key}")
+                    # 登录成功后触发一次后台绑定
+                    return self._get_bindqr_for_user(existing_user, auto_trigger=True)
+                else:
+                    # 用户不存在，直接更新账户的 user_key
+                    account.user_key = user_key
+                    db.merge(account)
+                    self._log(f"已将账户 {account.zepp_email} 分配给新用户 {user_key}")
 
-                # 登录成功后触发一次后台绑定
-                return self._get_bindqr_for_user(account, auto_trigger=True)
+                    # 登录成功后触发一次后台绑定
+                    return self._get_bindqr_for_user(account, auto_trigger=True)
         except Exception as e:
             self._log(f"分配账户失败: {e}")
-            db.rollback()
             return {'success': False, 'message': '分配账户失败，请重试'}
-        finally:
-            db.close()
 
     def register_zepp_account(self, user_key: str, captcha_code: str = None) -> dict:
         """
@@ -143,17 +157,20 @@ class StepSkills:
                 'message': str
             }
         """
+        # 清理过期的验证码记录
+        self._cleanup_expired_captcha()
+
         # 检查用户是否已注册
         user = self.get_user(user_key)
-        if user and user.zepp_email:
-            if user.bind_status == 1:
+        if user and user.get('zepp_email'):
+            if user.get('bind_status') == 1:
                 return {
                     'success': True,
                     'message': f'您已完成注册和绑定，可以直接刷步了。'
                 }
             else:
                 # 已注册但未绑定，登录成功后触发一次后台绑定
-                return self._get_bindqr_for_user(user, auto_trigger=True)
+                return self._get_bindqr_for_user_dict(user, auto_trigger=True)
 
         # 如果有待验证的验证码，使用用户输入的验证码继续注册
         if captcha_code and user_key in self.pending_captcha:
@@ -217,7 +234,8 @@ class StepSkills:
                 'email': email,
                 'password': password,
                 'name': register_name,
-                'image_base64': result['image_base64']
+                'image_base64': result['image_base64'],
+                'timestamp': time.time()  # 添加时间戳用于过期清理
             }
             return {
                 'success': False,
@@ -275,41 +293,36 @@ class StepSkills:
             userid = login_result['userid']
 
             # 保存用户信息
-            db = SessionLocal()
             try:
-                db_user = db.query(User).filter(User.user_key == user_key).first()
-                if db_user:
-                    # 已存在用户：覆盖 Zepp 账号信息
-                    db_user.zepp_email = email
-                    db_user.zepp_password = password
-                    db_user.zepp_userid = userid
-                    db_user.bind_status = 0
-                    db_user.bind_button_triggered = 0
-                    if api.login_token and api.app_token:
-                        db_user.login_token = api.login_token
-                        db_user.app_token = api.app_token
-                        db_user.token_updated_at = datetime.now()
-                    db.merge(db_user)
-                else:
-                    # 不存在用户：新建
-                    db_user = User(
-                        user_key=user_key,
-                        zepp_email=email,
-                        zepp_password=password,
-                        zepp_userid=userid,
-                        bind_status=0,
-                        login_token=api.login_token if api.login_token else None,
-                        app_token=api.app_token if api.app_token else None,
-                        token_updated_at=datetime.now() if (api.login_token and api.app_token) else None
-                    )
-                    db.add(db_user)
-                db.commit()
+                with get_db_session() as db:
+                    db_user = db.query(User).filter(User.user_key == user_key).first()
+                    if db_user:
+                        # 已存在用户：覆盖 Zepp 账号信息
+                        db_user.zepp_email = email
+                        db_user.zepp_password = password
+                        db_user.zepp_userid = userid
+                        db_user.bind_status = 0
+                        db_user.bind_button_triggered = 0
+                        if api.login_token and api.app_token:
+                            db_user.login_token = api.login_token
+                            db_user.app_token = api.app_token
+                            db_user.token_updated_at = datetime.now()
+                    else:
+                        # 不存在用户：新建
+                        db_user = User(
+                            user_key=user_key,
+                            zepp_email=email,
+                            zepp_password=password,
+                            zepp_userid=userid,
+                            bind_status=0,
+                            login_token=api.login_token if api.login_token else None,
+                            app_token=api.app_token if api.app_token else None,
+                            token_updated_at=datetime.now() if (api.login_token and api.app_token) else None
+                        )
+                        db.add(db_user)
             except Exception as e:
-                db.rollback()
                 self._log(f"保存用户信息异常: {e}")
                 return {'success': False, 'message': f'保存账号信息失败：{str(e)}'}
-            finally:
-                db.close()
 
             # 1. 调用 bindband 绑定手环（通过第三方API，自动完成）
             self._log(f"调用 bindband 绑定手环: {email}")
@@ -346,47 +359,44 @@ class StepSkills:
         user = self.get_user(user_key)
         if not user:
             return {'success': False, 'message': '用户不存在'}
-        return self._get_bindqr_for_user(user, auto_trigger=auto_trigger)
+        return self._get_bindqr_for_user_dict(user, auto_trigger=auto_trigger)
 
-    def _get_bindqr_for_user(self, user: User, auto_trigger: bool = False) -> dict:
-        """为已注册用户绑定手环并获取微信绑定二维码"""
+    def _get_bindqr_for_user_dict(self, user: Dict[str, Any], auto_trigger: bool = False) -> dict:
+        """为已注册用户绑定手环并获取微信绑定二维码（使用字典参数）"""
         try:
             api = ZeppAPI(
-                user.zepp_email, user.zepp_password,
+                user.get('zepp_email'), user.get('zepp_password'),
                 verbose=APP_DEBUG,
                 use_tls=False,
                 use_proxy=False,
                 enable_spoof_ip=False
             )
 
+            user_key = user.get('user_key')
+
             # 检查是否有缓存的token
-            if user.login_token and user.app_token:
-                api.login_token = user.login_token
-                api.app_token = user.app_token
-                api.userid = user.zepp_userid
+            if user.get('login_token') and user.get('app_token'):
+                api.login_token = user.get('login_token')
+                api.app_token = user.get('app_token')
+                api.userid = user.get('zepp_userid')
             else:
                 # 需要登录
                 login_result = api.login()
                 if not login_result['success']:
                     return {'success': False, 'message': f'登录失败：{login_result["message"]}'}
                 # 登录成功后缓存token，减少后续重复登录
-                db = SessionLocal()
-                try:
-                    db_user = db.query(User).filter(User.user_key == user.user_key).first()
+                with get_db_session() as db:
+                    db_user = db.query(User).filter(User.user_key == user_key).first()
                     if db_user and api.login_token and api.app_token:
                         db_user.login_token = api.login_token
                         db_user.app_token = api.app_token
                         db_user.token_updated_at = datetime.now()
-                        db.merge(db_user)
-                        db.commit()
-                finally:
-                    db.close()
 
             bind_msg = ""
 
             # 1. 自动触发绑定手环（仅首次）
-            if auto_trigger and user.user_key and self._trigger_bind_button_once(user.user_key):
-                bind_result = bindband(user.zepp_email, user.zepp_password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+            if auto_trigger and user_key and self._trigger_bind_button_once(user_key):
+                bind_result = bindband(user.get('zepp_email'), user.get('zepp_password'), step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
                 self._log(f"自动绑定手环结果: {bind_result}")
                 if bind_result.get("success"):
                     bind_msg = "手环已绑定，"
@@ -409,39 +419,51 @@ class StepSkills:
             self._log(f"获取绑定二维码异常: {e}")
             return {'success': False, 'message': ERROR_MESSAGE}
 
+    def _get_bindqr_for_user(self, user: User, auto_trigger: bool = False) -> dict:
+        """为已注册用户绑定手环并获取微信绑定二维码"""
+        # 转换为字典后调用
+        user_dict = {
+            'user_key': user.user_key,
+            'zepp_email': user.zepp_email,
+            'zepp_password': user.zepp_password,
+            'zepp_userid': user.zepp_userid,
+            'bind_status': user.bind_status,
+            'bind_button_triggered': user.bind_button_triggered,
+            'vip_expire_at': user.vip_expire_at,
+            'login_token': user.login_token,
+            'app_token': user.app_token,
+            'token_updated_at': user.token_updated_at,
+        }
+        return self._get_bindqr_for_user_dict(user_dict, auto_trigger=auto_trigger)
+
     def get_bindqr(self, user_key: str) -> dict:
         """获取绑定二维码"""
         user = self.get_user(user_key)
-        if not user or not user.zepp_email:
+        if not user or not user.get('zepp_email'):
             return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
 
-        if user.bind_status == 1:
+        if user.get('bind_status') == 1:
             return {'success': True, 'message': '您已完成绑定，可以直接刷步了'}
 
-        return self._get_bindqr_for_user(user)
+        return self._get_bindqr_for_user_dict(user)
 
     def bind_device(self, user_key: str) -> dict:
         """绑定手环设备（通过第三方API自动完成，无需扫码）"""
         user = self.get_user(user_key)
-        if not user or not user.zepp_email:
+        if not user or not user.get('zepp_email'):
             return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
 
         # 调用 bindband API 绑定手环
-        self._log(f"手动触发绑定手环: {user.zepp_email}")
-        bind_result = bindband(user.zepp_email, user.zepp_password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        self._log(f"手动触发绑定手环: {user.get('zepp_email')}")
+        bind_result = bindband(user.get('zepp_email'), user.get('zepp_password'), step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
         self._log(f"绑定手环结果: {bind_result}")
 
         if bind_result['success']:
             # 更新 bind_button_triggered 状态
-            db = SessionLocal()
-            try:
+            with get_db_session() as db:
                 db_user = db.query(User).filter(User.user_key == user_key).first()
                 if db_user:
                     db_user.bind_button_triggered = 1
-                    db.merge(db_user)
-                    db.commit()
-            finally:
-                db.close()
 
             return {
                 'success': True,
@@ -456,28 +478,25 @@ class StepSkills:
     def check_bindstatus(self, user_key: str) -> dict:
         """检查绑定状态"""
         user = self.get_user(user_key)
-        if not user or not user.zepp_userid:
+        if not user or not user.get('zepp_userid'):
             return {'success': False, 'message': '您还没有注册账号'}
 
         # 调用 API 检查绑定状态
         result = check_bindstatus(
-            user.zepp_userid,
+            user.get('zepp_userid'),
             verbose=False,
             use_proxy=USE_PROXY if USE_PROXY_MODE else False
         )
 
         if result['success'] and result['is_bound']:
             # 更新数据库状态
-            db = SessionLocal()
-            try:
-                user.bind_status = 1
-                db.merge(user)
-                db.commit()
-            finally:
-                db.close()
+            with get_db_session() as db:
+                db_user = db.query(User).filter(User.user_key == user_key).first()
+                if db_user:
+                    db_user.bind_status = 1
 
             # 调用 bindband 初始化（步数=1）
-            bind_result = bindband(user.zepp_email, user.zepp_password, step=1, verbose=False, use_proxy=USE_PROXY)
+            bind_result = bindband(user.get('zepp_email'), user.get('zepp_password'), step=1, verbose=False, use_proxy=USE_PROXY)
 
             if bind_result['success']:
                 return {
@@ -505,36 +524,40 @@ class StepSkills:
             return {'success': False, 'message': f'步数范围应为 {MIN_STEPS}-{MAX_STEPS}'}
 
         user = self.get_user(user_key)
-        if not user or not user.zepp_email:
+        if not user or not user.get('zepp_email'):
             return {'success': False, 'message': '您还没有注册账号，请先说"我要刷步"开始注册'}
 
-        if USE_PROXY_MODE and user.bind_status != 1:
+        if USE_PROXY_MODE and user.get('bind_status') != 1:
             return {'success': False, 'message': f'您还没有绑定设备，请先完成绑定。{self._bind_guide_text()}'}
 
         # 检查会员状态
-        if not user.vip_expire_at or user.vip_expire_at < datetime.now():
+        vip_expire_at = user.get('vip_expire_at')
+        if not vip_expire_at or vip_expire_at < datetime.now():
             return {'success': False, 'message': '您的会员已过期，请充值后继续使用。回复"充值"了解详情。'}
 
         if USE_PROXY_MODE:
             # 使用 Zepp API 刷步（原有流程）
             api = ZeppAPI(
-                user.zepp_email,
-                user.zepp_password,
+                user.get('zepp_email'),
+                user.get('zepp_password'),
                 verbose=APP_DEBUG,
                 use_proxy=USE_PROXY
             )
-            api.userid = user.zepp_userid
+            api.userid = user.get('zepp_userid')
 
             # 检查是否有缓存的token
             need_login = True
-            if user.login_token and user.app_token and user.token_updated_at:
+            login_token = user.get('login_token')
+            app_token = user.get('app_token')
+            token_updated_at = user.get('token_updated_at')
+            if login_token and app_token and token_updated_at:
                 # Token在24小时内有效
                 from datetime import timedelta
-                if datetime.now() - user.token_updated_at < timedelta(hours=24):
-                    api.login_token = user.login_token
-                    api.app_token = user.app_token
+                if datetime.now() - token_updated_at < timedelta(hours=24):
+                    api.login_token = login_token
+                    api.app_token = app_token
                     need_login = False
-                    self._log(f"使用缓存的token，更新时间: {user.token_updated_at}")
+                    self._log(f"使用缓存的token，更新时间: {token_updated_at}")
 
             # 先尝试用缓存token刷步
             result = api.update_step(steps)
@@ -552,41 +575,32 @@ class StepSkills:
 
             # 保存token到数据库
             if api.login_token and api.app_token:
-                db = SessionLocal()
-                try:
-                    user.login_token = api.login_token
-                    user.app_token = api.app_token
-                    user.token_updated_at = datetime.now()
-                    db.merge(user)
-                    db.commit()
-                    self._log("Token已缓存")
-                finally:
-                    db.close()
+                with get_db_session() as db:
+                    db_user = db.query(User).filter(User.user_key == user_key).first()
+                    if db_user:
+                        db_user.login_token = api.login_token
+                        db_user.app_token = api.app_token
+                        db_user.token_updated_at = datetime.now()
+                        self._log("Token已缓存")
         else:
             # 关闭代理模式后，刷步直接走第三方接口：apikey + 账号 + 密码 + 步数
             result = bindband(
-                user.zepp_email,
-                user.zepp_password,
+                user.get('zepp_email'),
+                user.get('zepp_password'),
                 step=steps,
                 verbose=APP_DEBUG,
                 use_proxy=False
             )
 
             # 直连模式刷步成功后，视为已完成设备绑定
-            if result.get('success') and user.bind_status != 1:
-                db = SessionLocal()
-                try:
+            if result.get('success') and user.get('bind_status') != 1:
+                with get_db_session() as db:
                     db_user = db.query(User).filter(User.user_key == user_key).first()
                     if db_user:
                         db_user.bind_status = 1
-                        db.merge(db_user)
-                        db.commit()
-                finally:
-                    db.close()
 
         # 记录刷步历史
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             record = StepRecord(
                 user_key=user_key,
                 steps=steps,
@@ -594,9 +608,6 @@ class StepSkills:
                 message=result['message']
             )
             db.add(record)
-            db.commit()
-        finally:
-            db.close()
 
         if result['success']:
             return {
@@ -616,14 +627,15 @@ class StepSkills:
         if not user:
             return {'success': False, 'is_vip': False, 'message': '用户不存在'}
 
-        if user.vip_expire_at and user.vip_expire_at > datetime.now():
-            remaining_days = (user.vip_expire_at - datetime.now()).days
+        vip_expire_at = user.get('vip_expire_at')
+        if vip_expire_at and vip_expire_at > datetime.now():
+            remaining_days = (vip_expire_at - datetime.now()).days
             return {
                 'success': True,
                 'is_vip': True,
                 'remaining_days': remaining_days,
-                'vip_expire_at': user.vip_expire_at.strftime('%Y-%m-%d %H:%M:%S'),
-                'message': f'您的会员有效期至 {user.vip_expire_at.strftime("%Y-%m-%d")}，剩余 {remaining_days} 天'
+                'vip_expire_at': vip_expire_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'message': f'您的会员有效期至 {vip_expire_at.strftime("%Y-%m-%d")}，剩余 {remaining_days} 天'
             }
         else:
             return {
@@ -635,56 +647,51 @@ class StepSkills:
 
     def use_card(self, user_key: str, card_key: str) -> dict:
         """使用卡密充值"""
-        db = SessionLocal()
         try:
-            # 查找卡密
-            card = db.query(Card).filter(Card.card_key == card_key).first()
-            if not card:
-                return {'success': False, 'message': '卡密不存在，请检查后重试'}
+            with get_db_session() as db:
+                # 查找卡密
+                card = db.query(Card).filter(Card.card_key == card_key).first()
+                if not card:
+                    return {'success': False, 'message': '卡密不存在，请检查后重试'}
 
-            if card.status == 'used':
-                return {'success': False, 'message': '该卡密已被使用'}
+                if card.status == 'used':
+                    return {'success': False, 'message': '该卡密已被使用'}
 
-            # 获取或创建用户
-            user = db.query(User).filter(User.user_key == user_key).first()
-            if not user:
-                return {'success': False, 'message': '用户不存在，请先登录'}
+                # 获取或创建用户
+                user = db.query(User).filter(User.user_key == user_key).first()
+                if not user:
+                    return {'success': False, 'message': '用户不存在，请先登录'}
 
-            # 计算新的过期时间
-            if user.vip_expire_at and user.vip_expire_at > datetime.now():
-                new_expire = user.vip_expire_at + timedelta(days=card.days)
-            else:
-                new_expire = datetime.now() + timedelta(days=card.days)
+                # 计算新的过期时间
+                if user.vip_expire_at and user.vip_expire_at > datetime.now():
+                    new_expire = user.vip_expire_at + timedelta(days=card.days)
+                else:
+                    new_expire = datetime.now() + timedelta(days=card.days)
 
-            # 更新用户会员时间
-            user.vip_expire_at = new_expire
+                # 更新用户会员时间
+                user.vip_expire_at = new_expire
 
-            # 标记卡密为已使用
-            card.status = 'used'
-            card.used_by = user_key
-            card.used_at = datetime.now()
+                # 标记卡密为已使用
+                card.status = 'used'
+                card.used_by = user_key
+                card.used_at = datetime.now()
 
-            db.commit()
-
-            return {
-                'success': True,
-                'message': f'充值成功！已为您延长 {card.days} 天会员，有效期至 {new_expire.strftime("%Y-%m-%d")}',
-                'vip_expire_at': new_expire.strftime('%Y-%m-%d %H:%M:%S')
-            }
+                return {
+                    'success': True,
+                    'message': f'充值成功！已为您延长 {card.days} 天会员，有效期至 {new_expire.strftime("%Y-%m-%d")}',
+                    'vip_expire_at': new_expire.strftime('%Y-%m-%d %H:%M:%S')
+                }
         except Exception as e:
-            db.rollback()
             return {'success': False, 'message': f'充值失败：{str(e)}'}
-        finally:
-            db.close()
 
     def get_user_status(self, user_key: str) -> str:
         """获取用户状态描述"""
         user = self.get_user(user_key)
-        if not user or not user.zepp_email:
+        if not user or not user.get('zepp_email'):
             return "未注册"
         if not USE_PROXY_MODE:
             return "已注册，可直接刷步"
-        if user.bind_status != 1:
+        if user.get('bind_status') != 1:
             return "已注册，未绑定设备"
         return "已注册，已绑定设备，可刷步"
 

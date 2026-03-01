@@ -4,14 +4,20 @@
 """
 import hashlib
 import time
+import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy import func
 
-from models import Admin, User, StepRecord, SessionLocal, init_db
-from config import ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SECRET_KEY
+from models import Admin, User, StepRecord, SessionLocal, init_db, get_db_session, ScheduledTask, Card
+from config import ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SECRET_KEY, APP_DEBUG
+
+# 配置日志
+logger = logging.getLogger(__name__)
+if APP_DEBUG:
+    logging.basicConfig(level=logging.DEBUG)
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
@@ -92,8 +98,7 @@ async def get_users(
     _: str = Depends(verify_token)
 ):
     """获取用户列表"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         query = db.query(User)
 
         # 关键词搜索
@@ -123,15 +128,12 @@ async def get_users(
             page=page,
             page_size=page_size
         )
-    finally:
-        db.close()
 
 
 @router.get("/users/{user_key}", response_model=UserDetailResponse)
 async def get_user_detail(user_key: str, _: str = Depends(verify_token)):
     """获取用户详情"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         user = db.query(User).filter(User.user_key == user_key).first()
         if not user:
             return UserDetailResponse(success=False, message="用户不存在")
@@ -147,8 +149,6 @@ async def get_user_detail(user_key: str, _: str = Depends(verify_token)):
         data["recent_records"] = [r.to_dict() for r in records]
 
         return UserDetailResponse(success=True, data=data)
-    finally:
-        db.close()
 
 
 class BindQRResponse(BaseModel):
@@ -160,8 +160,7 @@ class BindQRResponse(BaseModel):
 @router.get("/users/{user_key}/bindqr", response_model=BindQRResponse)
 async def get_user_bindqr(user_key: str, _: str = Depends(verify_token)):
     """获取用户绑定二维码"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         user = db.query(User).filter(User.user_key == user_key).first()
         if not user:
             return BindQRResponse(success=False, message="用户不存在")
@@ -181,8 +180,6 @@ async def get_user_bindqr(user_key: str, _: str = Depends(verify_token)):
             )
 
         return BindQRResponse(success=False, message=result.get("message", "获取二维码失败"))
-    finally:
-        db.close()
 
 
 class BindStatusResponse(BaseModel):
@@ -194,8 +191,7 @@ class BindStatusResponse(BaseModel):
 @router.post("/users/{user_key}/bindstatus", response_model=BindStatusResponse)
 async def refresh_bindstatus(user_key: str, _: str = Depends(verify_token)):
     """刷新用户绑定状态"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         user = db.query(User).filter(User.user_key == user_key).first()
         if not user:
             return BindStatusResponse(success=False, message="用户不存在")
@@ -212,8 +208,6 @@ async def refresh_bindstatus(user_key: str, _: str = Depends(verify_token)):
             is_bound=result.get("is_bound", False),
             message=result.get("message", "")
         )
-    finally:
-        db.close()
 
 
 # ==================== 批量注册 ====================
@@ -289,37 +283,33 @@ async def batch_register(request: BatchRegisterRequest, _: str = Depends(verify_
 
         if success and user_data:
             # 存入数据库（user_key 为空，等待分配给用户）
-            db = SessionLocal()
             try:
-                user = User(
-                    user_key=None,  # 批量注册的账户，user_key 为空，等待分配
-                    zepp_email=email,
-                    zepp_password=password,
-                    zepp_userid=user_data['userid'],
-                    bind_status=0
-                )
-                db.add(user)
-                db.commit()
+                with get_db_session() as db:
+                    user = User(
+                        user_key=None,  # 批量注册的账户，user_key 为空，等待分配
+                        zepp_email=email,
+                        zepp_password=password,
+                        zepp_userid=user_data['userid'],
+                        bind_status=0
+                    )
+                    db.add(user)
 
-                # 获取绑定二维码
-                qr_result = api.get_qrcode_ticket(user_data['userid'])
-                qrcode_url = None
-                if qr_result['success'] and QRCODE_AVAILABLE:
-                    qrcode_url = generate_qrcode(qr_result['ticket'])
+                    # 获取绑定二维码
+                    qr_result = api.get_qrcode_ticket(user_data['userid'])
+                    qrcode_url = None
+                    if qr_result['success'] and QRCODE_AVAILABLE:
+                        qrcode_url = generate_qrcode(qr_result['ticket'])
 
-                accounts.append({
-                    "email": email,
-                    "password": password,
-                    "userid": user_data['userid'],
-                    "qrcode": qrcode_url
-                })
-                registered += 1
+                    accounts.append({
+                        "email": email,
+                        "password": password,
+                        "userid": user_data['userid'],
+                        "qrcode": qrcode_url
+                    })
+                    registered += 1
             except Exception as e:
-                print(f"[BatchRegister] 保存用户失败: {e}")
-                db.rollback()
+                logger.error(f"[BatchRegister] 保存用户失败: {e}")
                 failed += 1
-            finally:
-                db.close()
         else:
             failed += 1
 
@@ -351,8 +341,7 @@ async def get_step_records(
     _: str = Depends(verify_token)
 ):
     """获取刷步记录"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         query = db.query(StepRecord)
 
         # 用户筛选
@@ -379,8 +368,6 @@ async def get_step_records(
             page=page,
             page_size=page_size
         )
-    finally:
-        db.close()
 
 
 # ==================== 统计数据 ====================
@@ -393,8 +380,7 @@ class StatsResponse(BaseModel):
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(_: str = Depends(verify_token)):
     """获取统计数据"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         today = datetime.now().date()
         today_start = datetime.combine(today, datetime.min.time())
 
@@ -446,8 +432,6 @@ async def get_stats(_: str = Depends(verify_token)):
                 }
             }
         )
-    finally:
-        db.close()
 
 
 # ==================== 系统配置 ====================
@@ -505,10 +489,8 @@ async def get_scheduled_tasks(
 ):
     """获取定时任务列表"""
     from scheduler import scheduler
-    from models import ScheduledTask
 
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         query = db.query(ScheduledTask)
 
         if status:
@@ -530,84 +512,58 @@ async def get_scheduled_tasks(
             data=result,
             total=len(result)
         )
-    finally:
-        db.close()
 
 
 @router.post("/scheduled-tasks/{task_id}/pause", response_model=TaskActionResponse)
 async def pause_scheduled_task(task_id: int, _: str = Depends(verify_token)):
     """暂停定时任务"""
-    from models import ScheduledTask
-
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         task = db.query(ScheduledTask).filter(ScheduledTask.id == task_id).first()
         if not task:
             return TaskActionResponse(success=False, message="任务不存在")
 
         task.status = "paused"
-        db.commit()
 
         return TaskActionResponse(success=True, message="任务已暂停")
-    finally:
-        db.close()
 
 
 @router.post("/scheduled-tasks/{task_id}/resume", response_model=TaskActionResponse)
 async def resume_scheduled_task(task_id: int, _: str = Depends(verify_token)):
     """恢复定时任务"""
-    from models import ScheduledTask
-
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         task = db.query(ScheduledTask).filter(ScheduledTask.id == task_id).first()
         if not task:
             return TaskActionResponse(success=False, message="任务不存在")
 
         task.status = "active"
-        db.commit()
 
         return TaskActionResponse(success=True, message="任务已恢复")
-    finally:
-        db.close()
 
 
 @router.post("/scheduled-tasks/{task_id}/cancel", response_model=TaskActionResponse)
 async def cancel_scheduled_task(task_id: int, _: str = Depends(verify_token)):
     """取消定时任务"""
-    from models import ScheduledTask
-
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         task = db.query(ScheduledTask).filter(ScheduledTask.id == task_id).first()
         if not task:
             return TaskActionResponse(success=False, message="任务不存在")
 
         task.status = "cancelled"
-        db.commit()
 
         return TaskActionResponse(success=True, message="任务已取消")
-    finally:
-        db.close()
 
 
 @router.delete("/scheduled-tasks/{task_id}", response_model=TaskActionResponse)
 async def delete_scheduled_task(task_id: int, _: str = Depends(verify_token)):
     """删除定时任务"""
-    from models import ScheduledTask
-
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         task = db.query(ScheduledTask).filter(ScheduledTask.id == task_id).first()
         if not task:
             return TaskActionResponse(success=False, message="任务不存在")
 
         db.delete(task)
-        db.commit()
 
         return TaskActionResponse(success=True, message="任务已删除")
-    finally:
-        db.close()
 
 
 # ==================== 卡密管理 ====================
@@ -651,35 +607,28 @@ async def generate_cards(request: GenerateCardsRequest, _: str = Depends(verify_
     if request.days < 1 or request.days > 365:
         return GenerateCardsResponse(success=False, message="天数范围为 1-365")
 
-    from models import Card
-
-    db = SessionLocal()
     try:
-        cards = []
-        for _ in range(request.count):
-            # 确保卡密唯一
-            while True:
-                card_key = generate_card_key()
-                existing = db.query(Card).filter(Card.card_key == card_key).first()
-                if not existing:
-                    break
+        with get_db_session() as db:
+            cards = []
+            for _ in range(request.count):
+                # 确保卡密唯一
+                while True:
+                    card_key = generate_card_key()
+                    existing = db.query(Card).filter(Card.card_key == card_key).first()
+                    if not existing:
+                        break
 
-            card = Card(card_key=card_key, days=request.days)
-            db.add(card)
-            cards.append({"card_key": card_key, "days": request.days})
+                card = Card(card_key=card_key, days=request.days)
+                db.add(card)
+                cards.append({"card_key": card_key, "days": request.days})
 
-        db.commit()
-
-        return GenerateCardsResponse(
-            success=True,
-            message=f"成功生成 {request.count} 张 {request.days} 天卡密",
-            cards=cards
-        )
+            return GenerateCardsResponse(
+                success=True,
+                message=f"成功生成 {request.count} 张 {request.days} 天卡密",
+                cards=cards
+            )
     except Exception as e:
-        db.rollback()
         return GenerateCardsResponse(success=False, message=f"生成失败: {str(e)}")
-    finally:
-        db.close()
 
 
 @router.get("/cards", response_model=CardListResponse)
@@ -690,10 +639,7 @@ async def get_cards(
     _: str = Depends(verify_token)
 ):
     """获取卡密列表"""
-    from models import Card
-
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         query = db.query(Card)
 
         if status:
@@ -711,17 +657,12 @@ async def get_cards(
             data=[c.to_dict() for c in cards],
             total=total
         )
-    finally:
-        db.close()
 
 
 @router.delete("/cards/{card_id}", response_model=TaskActionResponse)
 async def delete_card(card_id: int, _: str = Depends(verify_token)):
     """删除卡密"""
-    from models import Card
-
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         card = db.query(Card).filter(Card.id == card_id).first()
         if not card:
             return TaskActionResponse(success=False, message="卡密不存在")
@@ -730,19 +671,15 @@ async def delete_card(card_id: int, _: str = Depends(verify_token)):
             return TaskActionResponse(success=False, message="已使用的卡密不能删除")
 
         db.delete(card)
-        db.commit()
 
         return TaskActionResponse(success=True, message="卡密已删除")
-    finally:
-        db.close()
 
 
 # ==================== 初始化管理员 ====================
 
 def init_admin():
     """初始化管理员账号"""
-    db = SessionLocal()
-    try:
+    with get_db_session() as db:
         admin = db.query(Admin).filter(Admin.username == ADMIN_USERNAME).first()
         if not admin:
             admin = Admin(
@@ -750,7 +687,5 @@ def init_admin():
                 password=hash_password(ADMIN_PASSWORD)
             )
             db.add(admin)
-            db.commit()
+            logger.info(f"[Admin] 初始化管理员账号: {ADMIN_USERNAME}")
             print(f"[Admin] 初始化管理员账号: {ADMIN_USERNAME}")
-    finally:
-        db.close()

@@ -5,10 +5,12 @@
 import time
 import threading
 import math
+import logging
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Dict, Any
+from sqlalchemy.exc import OperationalError
 
-from models import ScheduledTask, User, SessionLocal
+from models import ScheduledTask, User, SessionLocal, get_db_session
 from config import APP_DEBUG, USE_PROXY, USE_PROXY_MODE
 
 # 导入 step_brush
@@ -17,6 +19,11 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from step_brush import ZeppAPI
 from step_brush import bindband
+
+# 配置日志
+logger = logging.getLogger(__name__)
+if APP_DEBUG:
+    logging.basicConfig(level=logging.DEBUG)
 
 
 class StepScheduler:
@@ -29,6 +36,7 @@ class StepScheduler:
 
     def log(self, msg: str):
         if APP_DEBUG:
+            logger.debug(f"[Scheduler] {msg}")
             print(f"[Scheduler] {msg}")
 
     def start(self):
@@ -61,18 +69,27 @@ class StepScheduler:
         now = datetime.now()
         current_hour = now.hour
         current_date = now.strftime("%Y-%m-%d")
+        max_retries = 2
 
-        db = SessionLocal()
-        try:
-            # 查找所有活跃的定时任务
-            tasks = db.query(ScheduledTask).filter(
-                ScheduledTask.status == "active"
-            ).all()
+        for attempt in range(max_retries):
+            try:
+                with get_db_session() as db:
+                    # 查找所有活跃的定时任务
+                    tasks = db.query(ScheduledTask).filter(
+                        ScheduledTask.status == "active"
+                    ).all()
 
-            for task in tasks:
-                self._process_task(task, current_hour, current_date, db)
-        finally:
-            db.close()
+                    for task in tasks:
+                        self._process_task(task, current_hour, current_date, db)
+                    return
+            except OperationalError as e:
+                self.log(f"数据库连接异常，第 {attempt + 1}/{max_retries} 次重试: {e}")
+                time.sleep(1)
+            except Exception as e:
+                self.log(f"调度执行异常: {e}")
+                return
+
+        self.log("数据库连接异常，已跳过本轮调度")
 
     def _process_task(self, task: ScheduledTask, current_hour: int, current_date: str, db):
         """处理单个任务"""
@@ -87,7 +104,6 @@ class StepScheduler:
             task.current_steps = 0
             task.current_step_index = 0
             task.last_run_date = current_date
-            db.commit()
             self.log(f"任务 {task.user_key} 新的一天，重置进度")
 
         # 检查是否在执行时间范围内
@@ -99,7 +115,7 @@ class StepScheduler:
         if task.current_step_index > expected_index:
             return  # 已经执行过当前时间段
 
-        # 按“剩余时间段”分摊剩余步数，避免中途创建任务时一次性补满
+        # 按"剩余时间段"分摊剩余步数，避免中途创建任务时一次性补满
         steps_remaining = max(0, task.target_steps - task.current_steps)
         remaining_slots = task.end_hour - current_hour  # 包含当前小时
         if remaining_slots <= 0 or steps_remaining <= 0:
@@ -130,50 +146,45 @@ class StepScheduler:
         else:
             self.log(f"任务 {task.user_key} 刷步失败")
 
-        db.commit()
-
     def _execute_brush_step(self, user_key: str, steps: int) -> bool:
         """执行刷步"""
-        db = SessionLocal()
         try:
-            user = db.query(User).filter(User.user_key == user_key).first()
-            if not user or not user.zepp_email:
-                return False
-            if USE_PROXY_MODE and user.bind_status != 1:
-                return False
+            with get_db_session() as db:
+                user = db.query(User).filter(User.user_key == user_key).first()
+                if not user or not user.zepp_email:
+                    return False
+                if USE_PROXY_MODE and user.bind_status != 1:
+                    return False
 
-            if USE_PROXY_MODE:
-                api = ZeppAPI(
-                    user.zepp_email,
-                    user.zepp_password,
-                    verbose=APP_DEBUG,
-                    use_proxy=USE_PROXY
-                )
-                api.userid = user.zepp_userid
-                result = api.update_step(steps)
-            else:
-                result = bindband(
-                    user.zepp_email,
-                    user.zepp_password,
-                    step=steps,
-                    verbose=APP_DEBUG,
-                    use_proxy=False
-                )
+                if USE_PROXY_MODE:
+                    api = ZeppAPI(
+                        user.zepp_email,
+                        user.zepp_password,
+                        verbose=APP_DEBUG,
+                        use_proxy=USE_PROXY
+                    )
+                    api.userid = user.zepp_userid
+                    result = api.update_step(steps)
+                else:
+                    result = bindband(
+                        user.zepp_email,
+                        user.zepp_password,
+                        step=steps,
+                        verbose=APP_DEBUG,
+                        use_proxy=False
+                    )
 
-            return result.get("success", False)
+                return result.get("success", False)
         except Exception as e:
             self.log(f"刷步异常: {e}")
             return False
-        finally:
-            db.close()
 
     # ==================== 任务管理方法 ====================
 
     def create_task(self, user_key: str, target_steps: int,
                    start_hour: int = 8, end_hour: int = 21) -> dict:
         """创建定时任务"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             # 检查用户是否可执行刷步
             user = db.query(User).filter(User.user_key == user_key).first()
             if not user or not user.zepp_email:
@@ -196,7 +207,6 @@ class StepScheduler:
                 existing.current_steps = 0
                 existing.current_step_index = 0
                 existing.last_run_date = None
-                db.commit()
                 return {
                     "success": True,
                     "message": f"已更新定时任务：每天 {start_hour}:00-{end_hour}:00 完成 {target_steps} 步",
@@ -212,34 +222,28 @@ class StepScheduler:
                 status="active"
             )
             db.add(task)
-            db.commit()
+            db.flush()  # 获取ID
 
             return {
                 "success": True,
                 "message": f"已创建定时任务：每天 {start_hour}:00-{end_hour}:00 完成 {target_steps} 步",
                 "task": task.to_dict()
             }
-        finally:
-            db.close()
 
-    def get_task(self, user_key: str) -> Optional[dict]:
+    def get_task(self, user_key: str) -> Optional[Dict[str, Any]]:
         """获取用户的定时任务"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
                 ScheduledTask.status.in_(["active", "paused"])
             ).first()
 
             return task.to_dict() if task else None
-        finally:
-            db.close()
 
     def update_task(self, user_key: str, target_steps: int = None,
                    start_hour: int = None, end_hour: int = None) -> dict:
         """更新定时任务"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
                 ScheduledTask.status.in_(["active", "paused"])
@@ -255,20 +259,15 @@ class StepScheduler:
             if end_hour is not None:
                 task.end_hour = end_hour
 
-            db.commit()
-
             return {
                 "success": True,
                 "message": f"定时任务已更新：每天 {task.start_hour}:00-{task.end_hour}:00 完成 {task.target_steps} 步",
                 "task": task.to_dict()
             }
-        finally:
-            db.close()
 
     def pause_task(self, user_key: str) -> dict:
         """暂停定时任务"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
                 ScheduledTask.status == "active"
@@ -278,16 +277,12 @@ class StepScheduler:
                 return {"success": False, "message": "没有找到活跃的定时任务"}
 
             task.status = "paused"
-            db.commit()
 
             return {"success": True, "message": "定时任务已暂停"}
-        finally:
-            db.close()
 
     def resume_task(self, user_key: str) -> dict:
         """恢复定时任务"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
                 ScheduledTask.status == "paused"
@@ -297,16 +292,12 @@ class StepScheduler:
                 return {"success": False, "message": "没有找到暂停的定时任务"}
 
             task.status = "active"
-            db.commit()
 
             return {"success": True, "message": "定时任务已恢复"}
-        finally:
-            db.close()
 
     def cancel_task(self, user_key: str) -> dict:
         """取消定时任务"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
                 ScheduledTask.status.in_(["active", "paused"])
@@ -316,22 +307,16 @@ class StepScheduler:
                 return {"success": False, "message": "没有找到定时任务"}
 
             task.status = "cancelled"
-            db.commit()
 
             return {"success": True, "message": "定时任务已取消"}
-        finally:
-            db.close()
 
     def get_all_active_tasks(self) -> list:
         """获取所有活跃任务（后台管理用）"""
-        db = SessionLocal()
-        try:
+        with get_db_session() as db:
             tasks = db.query(ScheduledTask).filter(
                 ScheduledTask.status.in_(["active", "paused"])
             ).all()
             return [t.to_dict() for t in tasks]
-        finally:
-            db.close()
 
 
 # 全局调度器实例

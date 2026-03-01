@@ -42,11 +42,21 @@ try:
 except ImportError:
     TLS_CLIENT_AVAILABLE = False
 
+# 尝试从配置加载AES密钥
+try:
+    from backend.config import ZEPP_AES_KEY, ZEPP_AES_IV
+except ImportError:
+    try:
+        from config import ZEPP_AES_KEY, ZEPP_AES_IV
+    except ImportError:
+        ZEPP_AES_KEY = "xeNtBVqzDc6tuNTh"
+        ZEPP_AES_IV = "MAAAYAAAAAAAAABg"
+
 
 def encrypt_login_data(plain: bytes) -> bytes:
     """AES-128-CBC 加密登录数据"""
-    key = b'xeNtBVqzDc6tuNTh'
-    iv = b'MAAAYAAAAAAAAABg'
+    key = ZEPP_AES_KEY.encode('utf-8') if isinstance(ZEPP_AES_KEY, str) else ZEPP_AES_KEY
+    iv = ZEPP_AES_IV.encode('utf-8') if isinstance(ZEPP_AES_IV, str) else ZEPP_AES_IV
     cipher = AES.new(key, AES.MODE_CBC, iv)
     pad_len = AES.block_size - (len(plain) % AES.block_size)
     padded = plain + bytes([pad_len]) * pad_len
@@ -366,21 +376,14 @@ class ZeppAPI:
             token_info = r2_json["token_info"]
             self.login_token = token_info.get("login_token")
             self.userid = token_info.get("user_id")
+            self.app_token = token_info.get("app_token")
             self.log(f"[步骤2] 登录成功! userid: {self.userid}")
 
-            # 优先使用步骤2直接返回的 app_token
-            self.app_token = token_info.get("app_token")
-
-            # 第三步: 补充获取 app_token（步骤2未返回时必须成功；已返回时失败仅记录日志）
+            # 第三步: 仅当步骤2未返回 app_token 时才获取
             if not self.app_token:
                 self.app_token = self._get_app_token(self.login_token)
             else:
-                try:
-                    refreshed = self._get_app_token(self.login_token)
-                    if refreshed:
-                        self.app_token = refreshed
-                except Exception as e:
-                    self.log(f"[步骤3] 获取app_token失败，沿用步骤2的app_token: {e}")
+                self.log(f"[步骤2] 已获取app_token，跳过步骤3")
 
             if not self.login_token or not self.userid or not self.app_token:
                 return {'success': False, 'message': '登录失败: token信息不完整'}
@@ -956,6 +959,18 @@ class ZeppAPI:
 
 # ==================== 验证码OCR识别 ====================
 
+# OCR单例实例
+_ocr_instance = None
+
+
+def _get_ocr_instance():
+    """获取OCR单例实例"""
+    global _ocr_instance
+    if _ocr_instance is None and DDDDOCR_AVAILABLE:
+        _ocr_instance = ddddocr.DdddOcr(show_ad=False)
+    return _ocr_instance
+
+
 def ocr_captcha(image_data: bytes) -> str:
     """
     识别验证码图片
@@ -1012,8 +1027,11 @@ def ocr_captcha(image_data: bytes) -> str:
     img.save(buf, format='PNG')
     buf.seek(0)
 
-    # OCR识别 - 多次尝试取最常见结果
-    ocr = ddddocr.DdddOcr(show_ad=False)
+    # OCR识别 - 多次尝试取最常见结果（使用单例实例）
+    ocr = _get_ocr_instance()
+    if ocr is None:
+        raise ImportError("OCR引擎初始化失败")
+
     results = []
     for _ in range(3):
         buf.seek(0)

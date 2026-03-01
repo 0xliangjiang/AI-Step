@@ -145,9 +145,55 @@ class Card(Base):
         }
 
 
-# 数据库连接
-engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
+class ChatSession(Base):
+    """聊天会话记录表"""
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_key = Column(String(100), nullable=False, index=True, comment="用户标识")
+    role = Column(String(20), nullable=False, comment="角色: user/assistant")
+    content = Column(Text, nullable=False, comment="消息内容")
+    created_at = Column(DateTime, default=datetime.now, index=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_key": self.user_key,
+            "role": self.role,
+            "content": self.content,
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None
+        }
+
+
+# 数据库连接（添加连接池配置）
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600
+)
 SessionLocal = sessionmaker(bind=engine)
+
+
+# 数据库会话上下文管理器
+from contextlib import contextmanager
+from typing import Generator
+
+
+@contextmanager
+def get_db_session() -> Generator:
+    """数据库会话上下文管理器，自动处理提交和关闭"""
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def init_db():
