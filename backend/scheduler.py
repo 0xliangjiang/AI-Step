@@ -6,7 +6,7 @@ import time
 import threading
 import math
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.exc import OperationalError
 
@@ -24,6 +24,11 @@ from step_brush import bindband
 logger = logging.getLogger(__name__)
 if APP_DEBUG:
     logging.basicConfig(level=logging.DEBUG)
+
+
+def get_beijing_time() -> datetime:
+    """获取北京时间（UTC+8）"""
+    return datetime.utcnow() + timedelta(hours=8)
 
 
 class StepScheduler:
@@ -66,7 +71,7 @@ class StepScheduler:
 
     def _check_and_execute(self):
         """检查并执行定时任务"""
-        now = datetime.now()
+        now = get_beijing_time()
         current_hour = now.hour
         current_date = now.strftime("%Y-%m-%d")
         max_retries = 2
@@ -94,8 +99,9 @@ class StepScheduler:
     def _process_task(self, task: ScheduledTask, current_hour: int, current_date: str, db):
         """处理单个任务"""
         # 检查用户会员状态
+        now = get_beijing_time()
         user = db.query(User).filter(User.user_key == task.user_key).first()
-        if not user or not user.vip_expire_at or user.vip_expire_at < datetime.now():
+        if not user or not user.vip_expire_at or user.vip_expire_at < now:
             self.log(f"任务 {task.user_key} 用户会员已过期，跳过执行")
             return
 
@@ -110,44 +116,59 @@ class StepScheduler:
         if not (task.start_hour <= current_hour < task.end_hour):
             return
 
-        # 检查当前小时是否已经执行过
-        expected_index = current_hour - task.start_hour
-        if task.current_step_index > expected_index:
-            return  # 已经执行过当前时间段
+        total_hours = task.end_hour - task.start_hour
 
-        # 按"剩余时间段"分摊剩余步数，避免中途创建任务时一次性补满
-        steps_remaining = max(0, task.target_steps - task.current_steps)
-        remaining_slots = task.end_hour - current_hour  # 包含当前小时
-        if remaining_slots <= 0 or steps_remaining <= 0:
+        # 计算当前应该执行到哪个时段
+        expected_index = current_hour - task.start_hour
+
+        # 如果已经执行过当前时段，跳过
+        if task.current_step_index > expected_index:
             return
 
-        # 最后一段补齐剩余步数；其他时段按向上取整分摊
-        if remaining_slots == 1:
-            steps_to_add = steps_remaining
+        # 计算基础步数（按总时段平均分配）
+        base_steps_per_hour = math.ceil(task.target_steps / total_hours)
+
+        # 确定本次要执行的时段：执行下一个未执行的时段
+        slot_to_execute = task.current_step_index
+
+        # 如果当前时段已经超过要执行的时段，只执行当前应该执行的时段
+        # 而不是一次性补齐所有错过的时段
+        if slot_to_execute < expected_index:
+            # 错过了多个时段，只执行下一个时段，让后续调度继续补
+            self.log(f"任务 {task.user_key}: 检测到错过时段，当前时段 {expected_index + 1}，将执行时段 {slot_to_execute + 1}")
+
+        # 计算本次应该达到的累计步数
+        # 最后一个时段补齐剩余步数，其他时段按平均值
+        if slot_to_execute == total_hours - 1:
+            target_current_steps = task.target_steps
         else:
-            steps_to_add = math.ceil(steps_remaining / remaining_slots)
+            # 使用固定平均值，确保稳定递增
+            target_current_steps = (slot_to_execute + 1) * base_steps_per_hour
+            # 不超过目标
+            target_current_steps = min(target_current_steps, task.target_steps)
 
-        target_current_steps = task.current_steps + steps_to_add
-        if steps_to_add <= 0:
-            return  # 不需要刷步
+        # 如果当前已经达到或超过本次目标，跳过
+        if task.current_steps >= target_current_steps:
+            task.current_step_index = slot_to_execute + 1
+            return
 
-        total_hours = task.end_hour - task.start_hour
-        self.log(f"任务 {task.user_key}: 时间段 {expected_index + 1}/{total_hours}, "
-                f"目标 {target_current_steps}, 当前 {task.current_steps}, 本次刷 {steps_to_add}")
+        steps_to_add = target_current_steps - task.current_steps
+        self.log(f"任务 {task.user_key}: 时段 {slot_to_execute + 1}/{total_hours}, "
+                f"当前 {task.current_steps} → 目标 {target_current_steps}")
 
-        # 执行刷步
-        success = self._execute_brush_step(task.user_key, steps_to_add)
+        # 执行刷步（传入累计目标值，不是增量）
+        success = self._execute_brush_step(task.user_key, target_current_steps)
 
         if success:
             task.current_steps = target_current_steps
-            task.current_step_index = expected_index + 1
-            task.last_run_at = datetime.now()
-            self.log(f"任务 {task.user_key} 刷步成功: +{steps_to_add}步, 累计 {task.current_steps}")
+            task.current_step_index = slot_to_execute + 1
+            task.last_run_at = get_beijing_time()
+            self.log(f"任务 {task.user_key} 刷步成功: 已刷到 {target_current_steps} 步")
         else:
             self.log(f"任务 {task.user_key} 刷步失败")
 
-    def _execute_brush_step(self, user_key: str, steps: int) -> bool:
-        """执行刷步"""
+    def _execute_brush_step(self, user_key: str, target_steps: int) -> bool:
+        """执行刷步（设置目标步数，非增量）"""
         try:
             with get_db_session() as db:
                 user = db.query(User).filter(User.user_key == user_key).first()
@@ -164,12 +185,12 @@ class StepScheduler:
                         use_proxy=USE_PROXY
                     )
                     api.userid = user.zepp_userid
-                    result = api.update_step(steps)
+                    result = api.update_step(target_steps)
                 else:
                     result = bindband(
                         user.zepp_email,
                         user.zepp_password,
-                        step=steps,
+                        step=target_steps,
                         verbose=APP_DEBUG,
                         use_proxy=False
                     )
@@ -239,6 +260,61 @@ class StepScheduler:
             ).first()
 
             return task.to_dict() if task else None
+
+    def get_task_detail(self, user_key: str) -> dict:
+        """获取定时任务详情，包含每小时刷步计划"""
+        with get_db_session() as db:
+            task = db.query(ScheduledTask).filter(
+                ScheduledTask.user_key == user_key,
+                ScheduledTask.status.in_(["active", "paused"])
+            ).first()
+
+            if not task:
+                return {"success": False, "message": "您还没有设置定时任务"}
+
+            # 计算每小时步数分配
+            target_steps = task.target_steps
+            start_hour = task.start_hour
+            end_hour = task.end_hour
+            total_hours = end_hour - start_hour
+
+            # 生成每小时计划
+            hourly_plan = []
+            remaining_steps = target_steps
+            for hour in range(start_hour, end_hour):
+                remaining_slots = end_hour - hour
+                if remaining_slots == 1:
+                    steps_this_hour = remaining_steps
+                else:
+                    steps_this_hour = math.ceil(remaining_steps / remaining_slots)
+
+                cumulative = target_steps - remaining_steps + steps_this_hour
+                hourly_plan.append({
+                    "hour": hour,
+                    "time": f"{hour}:00",
+                    "steps_this_hour": steps_this_hour,
+                    "cumulative_steps": cumulative
+                })
+                remaining_steps -= steps_this_hour
+
+            status_text = {"active": "执行中", "paused": "已暂停"}.get(task.status, task.status)
+
+            return {
+                "success": True,
+                "task": task.to_dict(),
+                "hourly_plan": hourly_plan,
+                "summary": {
+                    "target_steps": target_steps,
+                    "time_range": f"{start_hour}:00-{end_hour}:00",
+                    "total_hours": total_hours,
+                    "avg_steps_per_hour": math.ceil(target_steps / total_hours) if total_hours > 0 else 0,
+                    "status": status_text,
+                    "current_steps": task.current_steps,
+                    "current_progress": f"{task.current_steps}/{target_steps}",
+                    "note": "每小时设置累计目标步数（非增量）"
+                },
+                "message": f"定时任务详情：每天 {start_hour}:00-{end_hour}:00 刷到 {target_steps} 步，共 {total_hours} 个时段，每小时递增至目标"
+            }
 
     def update_task(self, user_key: str, target_steps: int = None,
                    start_hour: int = None, end_hour: int = None) -> dict:

@@ -821,6 +821,20 @@ FUNCTIONS = [
         }
     },
     {
+        "name": "get_scheduled_task_detail",
+        "description": "获取定时刷步任务详情，包含每小时刷步计划。当用户说'定时任务详情'、'查看刷步计划'、'我的定时任务'等时调用。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_key": {
+                    "type": "string",
+                    "description": "用户唯一标识"
+                }
+            },
+            "required": ["user_key"]
+        }
+    },
+    {
         "name": "update_scheduled_task",
         "description": "更新定时刷步任务。当用户想修改目标步数或时间时调用。",
         "parameters": {
@@ -960,6 +974,8 @@ def execute_function(function_name: str, arguments: dict) -> dict:
                 "message": f"您有一个定时任务：每天 {task.get('start_hour')}:00-{task.get('end_hour')}:00 完成 {task.get('target_steps')} 步，状态：{status_text}，当前进度：{task.get('current_steps', 0)} 步"
             }
         return {"success": False, "message": "您还没有设置定时任务"}
+    elif function_name == "get_scheduled_task_detail":
+        return scheduler.get_task_detail(arguments.get("user_key"))
     elif function_name == "update_scheduled_task":
         return scheduler.update_task(
             arguments.get("user_key"),
