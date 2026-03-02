@@ -1,0 +1,129 @@
+/* pages/index/index.wxss */
+.container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 30rpx;
+  box-sizing: border-box;
+}
+
+.header-card {
+  background: white;
+  border-radius: 20rpx;
+  padding: 40rpx;
+  margin-bottom: 30rpx;
+  position: relative;
+  overflow: hidden;
+}
+
+.vip-badge {
+  position: absolute;
+  top: 20rpx;
+  right: 20rpx;
+  background: linear-gradient(135deg, #f5af19, #f12711);
+  color: white;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+  font-size: 24rpx;
+}
+
+.user-info .welcome {
+  font-size: 40rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 20rpx;
+}
+
+.vip-info {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.vip-info .remaining {
+  color: #667eea;
+  font-weight: bold;
+  margin-left: 20rpx;
+}
+
+.vip-info.expired {
+  color: #999;
+}
+
+.feature-card {
+  background: white;
+  border-radius: 20rpx;
+  padding: 40rpx;
+  margin-bottom: 30rpx;
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 30rpx;
+}
+
+.feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 30rpx;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.feature-item .icon {
+  font-size: 48rpx;
+  width: 80rpx;
+  height: 80rpx;
+  background: #f5f5f5;
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feature-item .text .title {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.feature-item .text .desc {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 6rpx;
+}
+
+.action-card {
+  text-align: center;
+  padding: 40rpx 0;
+}
+
+.start-btn {
+  background: white;
+  color: #667eea;
+  font-size: 34rpx;
+  font-weight: bold;
+  padding: 30rpx 100rpx;
+  border-radius: 50rpx;
+  border: none;
+  box-shadow: 0 10rpx 30rpx rgba(0, 0, 0, 0.2);
+}
+
+.start-btn::after {
+  border: none;
+}
+
+.contact {
+  margin-top: 40rpx;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.contact .qq {
+  color: white;
+  text-decoration: underline;
+}

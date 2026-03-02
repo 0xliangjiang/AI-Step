@@ -2,6 +2,7 @@
 """
 FastAPI 主应用
 """
+import os
 from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -156,6 +157,57 @@ async def user_login(request: LoginRequest):
                 user.user_key = user_key
 
     return {"success": True, "user_key": user_key}
+
+
+class WxLoginRequest(BaseModel):
+    code: str
+
+
+@app.post("/api/user/wxlogin")
+async def wx_login(request: WxLoginRequest):
+    """微信小程序登录（使用openid作为用户标识）"""
+    import requests
+
+    code = request.code.strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="code不能为空")
+
+    # 微信小程序配置（需要替换为你的AppID和AppSecret）
+    WX_APPID = os.getenv("WX_APPID", "")
+    WX_SECRET = os.getenv("WX_SECRET", "")
+
+    if not WX_APPID or not WX_SECRET:
+        # 开发环境：使用code作为openid（方便测试）
+        openid = f"dev_{code}"
+    else:
+        # 生产环境：调用微信API获取openid
+        url = f"https://api.weixin.qq.com/sns/jscode2session?appid={WX_APPID}&secret={WX_SECRET}&js_code={code}&grant_type=authorization_code"
+        try:
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            if "openid" not in data:
+                return {"success": False, "message": f"微信登录失败: {data.get('errmsg', '未知错误')}"}
+            openid = data["openid"]
+        except Exception as e:
+            return {"success": False, "message": f"微信API调用失败: {str(e)}"}
+
+    with get_db_session() as db:
+        user = db.query(User).filter(User.user_key == openid).first()
+
+        if not user:
+            # 新用户注册，赠送免费天数
+            user = User(
+                user_key=openid,
+                vip_expire_at=datetime.now() + timedelta(days=FREE_DAYS)
+            )
+            db.add(user)
+            print(f"[WxLogin] 新用户 {openid} 注册，赠送 {FREE_DAYS} 天会员")
+
+    # 初始化用户会话
+    if openid not in user_sessions:
+        user_sessions[openid] = []
+
+    return {"success": True, "openid": openid}
 
 
 @app.get("/api/user/info", response_model=UserInfoResponse)

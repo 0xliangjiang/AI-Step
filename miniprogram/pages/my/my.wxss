@@ -1,0 +1,135 @@
+/* pages/my/my.wxss */
+.container {
+  min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.user-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 60rpx 40rpx;
+  display: flex;
+  align-items: center;
+  gap: 30rpx;
+}
+
+.avatar {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  color: #667eea;
+  font-weight: bold;
+}
+
+.info .nickname {
+  color: white;
+  font-size: 36rpx;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+}
+
+.vip-status {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.badge {
+  background: linear-gradient(135deg, #f5af19, #f12711);
+  color: white;
+  padding: 6rpx 16rpx;
+  border-radius: 20rpx;
+  font-size: 22rpx;
+}
+
+.badge.expired {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.expire {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 24rpx;
+}
+
+.section {
+  margin: 20rpx;
+}
+
+.section-title {
+  font-size: 28rpx;
+  color: #999;
+  margin-bottom: 16rpx;
+  padding-left: 10rpx;
+}
+
+.card {
+  background: white;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.item .label {
+  color: #666;
+  font-size: 28rpx;
+}
+
+.item .value {
+  color: #333;
+  font-size: 28rpx;
+}
+
+.item .value.highlight {
+  color: #667eea;
+  font-weight: bold;
+}
+
+.menu {
+  background: white;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-text {
+  color: #333;
+  font-size: 28rpx;
+}
+
+.menu-arrow {
+  color: #ccc;
+  font-size: 28rpx;
+}
+
+.recharge-tip {
+  text-align: center;
+  padding: 40rpx;
+  color: #999;
+  font-size: 26rpx;
+}

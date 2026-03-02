@@ -1,0 +1,58 @@
+<!--pages/my/my.wxml-->
+<view class="container">
+  <!-- 用户卡片 -->
+  <view class="user-card">
+    <view class="avatar">
+      <text>用</text>
+    </view>
+    <view class="info">
+      <view class="nickname">用户</view>
+      <view class="vip-status" wx:if="{{isVip}}">
+        <text class="badge">VIP会员</text>
+        <text class="expire">{{remainingDays}}天后到期</text>
+      </view>
+      <view class="vip-status" wx:else>
+        <text class="badge expired">普通用户</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 会员信息 -->
+  <view class="section">
+    <view class="section-title">会员信息</view>
+    <view class="card">
+      <view class="item">
+        <text class="label">会员状态</text>
+        <text class="value">{{isVip ? '有效' : '未开通'}}</text>
+      </view>
+      <view class="item" wx:if="{{isVip}}">
+        <text class="label">到期时间</text>
+        <text class="value">{{vipExpireAt}}</text>
+      </view>
+      <view class="item">
+        <text class="label">剩余天数</text>
+        <text class="value highlight">{{remainingDays}}天</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 功能菜单 -->
+  <view class="section">
+    <view class="section-title">更多</view>
+    <view class="menu">
+      <view class="menu-item" bindtap="copyQQ">
+        <text class="menu-text">联系客服</text>
+        <text class="menu-arrow">></text>
+      </view>
+      <view class="menu-item" bindtap="aboutUs">
+        <text class="menu-text">关于我们</text>
+        <text class="menu-arrow">></text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 充值提示 -->
+  <view class="recharge-tip" wx:if="{{!isVip}}">
+    <text>如需充值会员，请联系客服 QQ: 188177020</text>
+  </view>
+</view>

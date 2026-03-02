@@ -1,0 +1,67 @@
+<!--pages/chat/chat.wxml-->
+<view class="container">
+  <!-- 消息列表 -->
+  <scroll-view
+    class="message-list"
+    scroll-y
+    scroll-into-view="{{scrollToView}}"
+    scroll-with-animation
+  >
+    <view class="message-item {{item.role}}" wx:for="{{messages}}" wx:key="index">
+      <view class="avatar">
+        <image wx:if="{{item.role === 'user'}}" src="/images/user-avatar.png" mode="aspectFill" />
+        <text wx:else>AI</text>
+      </view>
+      <view class="content">
+        <view class="bubble">
+          <text>{{item.content}}</text>
+          <!-- 图片消息 -->
+          <view class="images" wx:if="{{item.images && item.images.length > 0}}">
+            <image
+              wx:for="{{item.images}}"
+              wx:for-item="img"
+              wx:key="index"
+              src="data:image/png;base64,{{img.data}}"
+              mode="widthFix"
+              bindtap="previewImage"
+              data-src="data:image/png;base64,{{img.data}}"
+            />
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 加载中 -->
+    <view class="loading" wx:if="{{loading}}">
+      <view class="loading-dot"></view>
+      <view class="loading-dot"></view>
+      <view class="loading-dot"></view>
+    </view>
+
+    <view id="bottom"></view>
+  </scroll-view>
+
+  <!-- 快捷操作 -->
+  <view class="quick-actions">
+    <view class="quick-btn" bindtap="quickAction" data-action="刷50000步">刷步</view>
+    <view class="quick-btn" bindtap="quickAction" data-action="每天50000步">定时</view>
+    <view class="quick-btn" bindtap="quickAction" data-action="我的定时任务">任务</view>
+    <view class="quick-btn" bindtap="quickAction" data-action="会员状态">会员</view>
+  </view>
+
+  <!-- 输入框 -->
+  <view class="input-bar">
+    <input
+      class="input"
+      type="text"
+      value="{{inputText}}"
+      placeholder="输入消息..."
+      bindinput="onInput"
+      confirm-type="send"
+      bindconfirm="sendMessage"
+    />
+    <button class="send-btn" bindtap="sendMessage" disabled="{{loading || !inputText}}">
+      发送
+    </button>
+  </view>
+</view>
