@@ -2,7 +2,9 @@
 App({
   globalData: {
     // 后端API地址
-    baseUrl: 'https://your-domain.com/api',
+    baseUrl: 'http://localhost:8000',
+    // API 前缀
+    apiPrefix: '/api',
     // 用户信息
     userInfo: null,
     openid: null,
@@ -32,7 +34,7 @@ App({
         if (res.code) {
           // 发送 code 到后端换取 openid
           wx.request({
-            url: `${this.globalData.baseUrl}/user/wxlogin`,
+            url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/wxlogin`,
             method: 'POST',
             data: { code: res.code },
             success: (res) => {
@@ -53,7 +55,7 @@ App({
     if (!this.globalData.openid) return
 
     wx.request({
-      url: `${this.globalData.baseUrl}/user/info`,
+      url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/info`,
       method: 'GET',
       data: { user_key: this.globalData.openid },
       success: (res) => {

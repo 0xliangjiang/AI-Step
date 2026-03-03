@@ -9,6 +9,7 @@ import AdminStats from './views/AdminStats.vue'
 import AdminConfig from './views/AdminConfig.vue'
 import AdminTasks from './views/AdminTasks.vue'
 import AdminCards from './views/AdminCards.vue'
+import AdminPackages from './views/AdminPackages.vue'
 
 const routes = [
   { path: '/', name: 'Login', component: Login },
@@ -24,6 +25,7 @@ const routes = [
       { path: 'records', name: 'AdminRecords', component: AdminRecords },
       { path: 'tasks', name: 'AdminTasks', component: AdminTasks },
       { path: 'cards', name: 'AdminCards', component: AdminCards },
+      { path: 'packages', name: 'AdminPackages', component: AdminPackages },
       { path: 'stats', name: 'AdminStats', component: AdminStats },
       { path: 'config', name: 'AdminConfig', component: AdminConfig }
     ]

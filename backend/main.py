@@ -8,10 +8,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from models import init_db, User, Card, SessionLocal, ChatSession, get_db_session
+from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, get_db_session
 from ai_client import ai_client
 from admin import router as admin_router, init_admin
-from config import FREE_DAYS
+from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT
 import time
 from collections import defaultdict
 import threading
@@ -29,6 +29,9 @@ app.add_middleware(
 
 # 注册后台管理路由
 app.include_router(admin_router)
+
+# 存储用户会话消息
+user_sessions: Dict[str, List[Dict]] = {}
 
 # 简单的内存限流器（生产环境建议用 Redis）
 class RateLimiter:
@@ -211,8 +214,11 @@ async def wx_login(request: WxLoginRequest):
 
 
 @app.get("/api/user/info", response_model=UserInfoResponse)
-async def get_user_info(user_key: str):
+async def get_user_info(user_key: str = ""):
     """获取用户信息"""
+    if not user_key:
+        return UserInfoResponse(success=False, message="请先登录")
+
     with get_db_session() as db:
         user = db.query(User).filter(User.user_key == user_key).first()
         if not user:
@@ -257,6 +263,323 @@ async def chat(request: ChatRequest):
         reply=result.get("reply", ""),
         images=result.get("images", [])
     )
+
+
+class AdWatchResponse(BaseModel):
+    success: bool
+    message: str
+    reward_days: int = 0
+    daily_count: int = 0
+    daily_limit: int = 0
+    vip_expire_at: Optional[str] = None
+
+
+def get_ad_reward_config() -> tuple:
+    """获取广告奖励配置（优先从数据库读取，否则使用默认配置）"""
+    with get_db_session() as db:
+        reward_days_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "ad_reward_days"
+        ).first()
+        daily_limit_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "ad_daily_limit"
+        ).first()
+
+        reward_days = int(reward_days_config.config_value) if reward_days_config else AD_REWARD_DAYS
+        daily_limit = int(daily_limit_config.config_value) if daily_limit_config else AD_DAILY_LIMIT
+
+        return reward_days, daily_limit
+
+
+@app.get("/api/user/ad-config")
+async def get_ad_config():
+    """获取广告奖励配置"""
+    reward_days, daily_limit = get_ad_reward_config()
+    return {
+        "success": True,
+        "reward_days": reward_days,
+        "daily_limit": daily_limit
+    }
+
+
+@app.get("/api/user/ad-status", response_model=AdWatchResponse)
+async def get_ad_status(user_key: str = ""):
+    """获取用户今日观看广告状态"""
+    if not user_key:
+        return AdWatchResponse(success=False, message="请先登录")
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    reward_days, daily_limit = get_ad_reward_config()
+
+    with get_db_session() as db:
+        # 查询今日观看次数
+        today_count = db.query(AdWatch).filter(
+            AdWatch.user_key == user_key,
+            AdWatch.watch_date == today
+        ).count()
+
+        # 查询用户信息
+        user = db.query(User).filter(User.user_key == user_key).first()
+
+        return AdWatchResponse(
+            success=True,
+            message="获取成功",
+            daily_count=today_count,
+            daily_limit=daily_limit,
+            reward_days=reward_days,
+            vip_expire_at=user.vip_expire_at.strftime("%Y-%m-%d %H:%M:%S") if user and user.vip_expire_at else None
+        )
+
+
+@app.post("/api/user/watch-ad", response_model=AdWatchResponse)
+async def watch_ad(user_key: str = ""):
+    """观看广告奖励会员天数"""
+    if not user_key:
+        return AdWatchResponse(success=False, message="请先登录")
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    reward_days, daily_limit = get_ad_reward_config()
+
+    with get_db_session() as db:
+        # 查询今日观看次数
+        today_count = db.query(AdWatch).filter(
+            AdWatch.user_key == user_key,
+            AdWatch.watch_date == today
+        ).count()
+
+        # 检查是否超过每日限制
+        if today_count >= daily_limit:
+            return AdWatchResponse(
+                success=False,
+                message=f"今日观看次数已达上限（{daily_limit}次），请明天再来",
+                daily_count=today_count,
+                daily_limit=daily_limit
+            )
+
+        # 获取用户信息
+        user = db.query(User).filter(User.user_key == user_key).first()
+        if not user:
+            return AdWatchResponse(success=False, message="用户不存在")
+
+        # 计算新的会员过期时间
+        if user.vip_expire_at and user.vip_expire_at > datetime.now():
+            new_expire = user.vip_expire_at + timedelta(days=reward_days)
+        else:
+            new_expire = datetime.now() + timedelta(days=reward_days)
+
+        # 更新用户会员时间
+        user.vip_expire_at = new_expire
+
+        # 记录观看记录
+        ad_watch = AdWatch(
+            user_key=user_key,
+            watch_date=today,
+            reward_days=reward_days
+        )
+        db.add(ad_watch)
+
+        print(f"[AdWatch] 用户 {user_key} 观看广告，奖励 {reward_days} 天，新过期时间: {new_expire}")
+
+        return AdWatchResponse(
+            success=True,
+            message=f"观看成功，获得 {reward_days} 天会员",
+            reward_days=reward_days,
+            daily_count=today_count + 1,
+            daily_limit=daily_limit,
+            vip_expire_at=new_expire.strftime("%Y-%m-%d %H:%M:%S")
+        )
+
+
+# ==================== 支付相关 ====================
+
+from payment import wechat_pay, generate_order_no
+
+
+class PackageResponse(BaseModel):
+    success: bool
+    data: List[dict] = []
+    message: str = ""
+
+
+class CreateOrderRequest(BaseModel):
+    user_key: str
+    package_id: int
+
+
+class OrderResponse(BaseModel):
+    success: bool
+    message: str = ""
+    order_no: Optional[str] = None
+    pay_params: Optional[dict] = None
+
+
+@app.get("/api/packages", response_model=PackageResponse)
+async def get_packages():
+    """获取VIP套餐列表"""
+    with get_db_session() as db:
+        packages = db.query(VipPackage).filter(
+            VipPackage.status == 1
+        ).order_by(VipPackage.sort_order.asc()).all()
+
+        return PackageResponse(
+            success=True,
+            data=[p.to_dict() for p in packages]
+        )
+
+
+@app.post("/api/pay/create", response_model=OrderResponse)
+async def create_payment_order(request: CreateOrderRequest):
+    """创建支付订单"""
+    if not request.user_key:
+        return OrderResponse(success=False, message="请先登录")
+
+    with get_db_session() as db:
+        # 获取套餐信息
+        package = db.query(VipPackage).filter(
+            VipPackage.id == request.package_id,
+            VipPackage.status == 1
+        ).first()
+
+        if not package:
+            return OrderResponse(success=False, message="套餐不存在")
+
+        # 生成订单号
+        order_no = generate_order_no()
+
+        # 创建订单
+        order = PaymentOrder(
+            order_no=order_no,
+            user_key=request.user_key,
+            package_id=package.id,
+            package_name=package.name,
+            days=package.days,
+            amount=package.price,
+            status="pending"
+        )
+        db.add(order)
+
+        # 调用微信支付下单
+        result = wechat_pay.create_jsapi_order(
+            order_no=order_no,
+            amount=package.price,
+            description=f"智问AI-{package.name}",
+            openid=request.user_key  # 小程序用户使用openid
+        )
+
+        if result.get("success"):
+            # 更新prepay_id
+            order.prepay_id = result.get("prepay_id")
+
+            # 获取小程序支付参数
+            pay_params = wechat_pay.get_jsapi_params(result.get("prepay_id"))
+
+            print(f"[Payment] 创建订单成功: {order_no}, 用户: {request.user_key}, 套餐: {package.name}")
+
+            return OrderResponse(
+                success=True,
+                message="下单成功",
+                order_no=order_no,
+                pay_params=pay_params
+            )
+        else:
+            # 下单失败，删除订单
+            db.delete(order)
+            return OrderResponse(
+                success=False,
+                message=result.get("message", "下单失败")
+            )
+
+
+@app.get("/api/pay/query/{order_no}")
+async def query_payment_order(order_no: str):
+    """查询订单状态"""
+    with get_db_session() as db:
+        order = db.query(PaymentOrder).filter(
+            PaymentOrder.order_no == order_no
+        ).first()
+
+        if not order:
+            return {"success": False, "message": "订单不存在"}
+
+        # 如果订单待支付，主动查询微信
+        if order.status == "pending":
+            result = wechat_pay.query_order(order_no)
+            if result.get("success") and result.get("trade_state") == "SUCCESS":
+                # 更新订单状态
+                order.status = "paid"
+                order.transaction_id = result.get("transaction_id")
+                order.paid_at = datetime.now()
+
+                # 增加用户会员时间
+                user = db.query(User).filter(User.user_key == order.user_key).first()
+                if user:
+                    if user.vip_expire_at and user.vip_expire_at > datetime.now():
+                        user.vip_expire_at = user.vip_expire_at + timedelta(days=order.days)
+                    else:
+                        user.vip_expire_at = datetime.now() + timedelta(days=order.days)
+
+                    print(f"[Payment] 支付成功: {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
+
+        return {
+            "success": True,
+            "status": order.status,
+            "order": order.to_dict()
+        }
+
+
+@app.post("/api/pay/notify")
+async def payment_notify(request: Request):
+    """微信支付回调"""
+    body = await request.body()
+    xml_data = body.decode('utf-8')
+
+    print(f"[Payment] 收到回调: {xml_data}")
+
+    # 解析回调数据
+    result = wechat_pay.parse_notify(xml_data)
+
+    if not result.get("success"):
+        print(f"[Payment] 回调验签失败: {result.get('message')}")
+        return Response(content=wechat_pay.fail_response(result.get("message")), media_type="application/xml")
+
+    data = result.get("data")
+
+    # 验证支付结果
+    if data.get("result_code") != "SUCCESS":
+        return Response(content=wechat_pay.fail_response("支付失败"), media_type="application/xml")
+
+    order_no = data.get("out_trade_no")
+    transaction_id = data.get("transaction_id")
+
+    with get_db_session() as db:
+        order = db.query(PaymentOrder).filter(PaymentOrder.order_no == order_no).first()
+
+        if not order:
+            print(f"[Payment] 订单不存在: {order_no}")
+            return Response(content=wechat_pay.fail_response("订单不存在"), media_type="application/xml")
+
+        # 已处理过的订单直接返回成功
+        if order.status == "paid":
+            return Response(content=wechat_pay.success_response(), media_type="application/xml")
+
+        # 更新订单状态
+        order.status = "paid"
+        order.transaction_id = transaction_id
+        order.paid_at = datetime.now()
+
+        # 增加用户会员时间
+        user = db.query(User).filter(User.user_key == order.user_key).first()
+        if user:
+            if user.vip_expire_at and user.vip_expire_at > datetime.now():
+                user.vip_expire_at = user.vip_expire_at + timedelta(days=order.days)
+            else:
+                user.vip_expire_at = datetime.now() + timedelta(days=order.days)
+
+            print(f"[Payment] 支付成功(回调): {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
+
+    return Response(content=wechat_pay.success_response(), media_type="application/xml")
+
+
+from fastapi import Request, Response
 
 
 @app.get("/api/health")

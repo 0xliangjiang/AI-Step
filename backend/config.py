@@ -40,6 +40,19 @@ MAX_STEPS = 98800
 
 # 会员配置
 FREE_DAYS = int(os.getenv("FREE_DAYS", 3))  # 新用户免费天数
+AD_REWARD_DAYS = int(os.getenv("AD_REWARD_DAYS", 1))  # 看广告奖励天数
+AD_DAILY_LIMIT = int(os.getenv("AD_DAILY_LIMIT", 3))  # 每天看广告次数上限
+
+# 微信支付配置
+WX_APPID = os.getenv("WX_APPID", "")  # 小程序AppID
+WX_SECRET = os.getenv("WX_SECRET", "")  # 小程序Secret
+WX_MCH_ID = os.getenv("WX_MCH_ID", "")  # 商户号
+WX_API_KEY = os.getenv("WX_API_KEY", "")  # API密钥（V2）
+WX_API_V3_KEY = os.getenv("WX_API_V3_KEY", "")  # API V3密钥
+WX_NOTIFY_URL = os.getenv("WX_NOTIFY_URL", "")  # 支付回调地址
+# 证书路径（用于退款等操作）
+WX_CERT_PATH = os.getenv("WX_CERT_PATH", "")
+WX_KEY_PATH = os.getenv("WX_KEY_PATH", "")
 
 # 验证码 OCR 重试次数
 CAPTCHA_RETRY_TIMES = 5

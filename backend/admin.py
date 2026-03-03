@@ -11,8 +11,8 @@ from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy import func
 
-from models import Admin, User, StepRecord, SessionLocal, init_db, get_db_session, ScheduledTask, Card
-from config import ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SECRET_KEY, APP_DEBUG
+from models import Admin, User, StepRecord, SessionLocal, init_db, get_db_session, ScheduledTask, Card, SystemConfig, VipPackage, PaymentOrder
+from config import ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SECRET_KEY, APP_DEBUG, AD_REWARD_DAYS, AD_DAILY_LIMIT
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -444,28 +444,69 @@ class ConfigResponse(BaseModel):
 
 class UpdateConfigRequest(BaseModel):
     admin_password: Optional[str] = None
+    ad_reward_days: Optional[int] = None
+    ad_daily_limit: Optional[int] = None
+
+
+def get_or_create_config(db, key: str, default_value: str, description: str = "") -> SystemConfig:
+    """获取或创建配置项"""
+    config = db.query(SystemConfig).filter(SystemConfig.config_key == key).first()
+    if not config:
+        config = SystemConfig(
+            config_key=key,
+            config_value=str(default_value),
+            description=description
+        )
+        db.add(config)
+    return config
 
 
 @router.get("/config", response_model=ConfigResponse)
 async def get_config(_: str = Depends(verify_token)):
     """获取系统配置"""
-    return ConfigResponse(
-        success=True,
-        data={
-            "admin_username": ADMIN_USERNAME,
-            "ai_provider": "minimax/glm"
-        }
-    )
+    with get_db_session() as db:
+        # 获取广告奖励配置
+        ad_reward_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "ad_reward_days"
+        ).first()
+        ad_limit_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "ad_daily_limit"
+        ).first()
+
+        ad_reward_days = int(ad_reward_config.config_value) if ad_reward_config else AD_REWARD_DAYS
+        ad_daily_limit = int(ad_limit_config.config_value) if ad_limit_config else AD_DAILY_LIMIT
+
+        return ConfigResponse(
+            success=True,
+            data={
+                "admin_username": ADMIN_USERNAME,
+                "ai_provider": "minimax/glm",
+                "ad_reward_days": ad_reward_days,
+                "ad_daily_limit": ad_daily_limit
+            }
+        )
 
 
 @router.put("/config", response_model=ConfigResponse)
 async def update_config(request: UpdateConfigRequest, _: str = Depends(verify_token)):
     """更新系统配置"""
-    # 注意：这里简化处理，实际应该更新数据库或环境变量
-    return ConfigResponse(
-        success=True,
-        message="配置更新成功（需要重启服务生效）"
-    )
+    with get_db_session() as db:
+        if request.ad_reward_days is not None:
+            if request.ad_reward_days < 1 or request.ad_reward_days > 30:
+                return ConfigResponse(success=False, message="广告奖励天数范围为 1-30")
+            config = get_or_create_config(db, "ad_reward_days", AD_REWARD_DAYS, "观看广告奖励天数")
+            config.config_value = str(request.ad_reward_days)
+
+        if request.ad_daily_limit is not None:
+            if request.ad_daily_limit < 1 or request.ad_daily_limit > 20:
+                return ConfigResponse(success=False, message="每日观看次数范围为 1-20")
+            config = get_or_create_config(db, "ad_daily_limit", AD_DAILY_LIMIT, "每日观看广告次数上限")
+            config.config_value = str(request.ad_daily_limit)
+
+        return ConfigResponse(
+            success=True,
+            message="配置更新成功"
+        )
 
 
 # ==================== 定时任务管理 ====================
@@ -673,6 +714,125 @@ async def delete_card(card_id: int, _: str = Depends(verify_token)):
         db.delete(card)
 
         return TaskActionResponse(success=True, message="卡密已删除")
+
+
+# ==================== VIP套餐管理 ====================
+
+class PackageRequest(BaseModel):
+    name: str
+    days: int
+    price: int
+    original_price: Optional[int] = None
+    sort_order: int = 0
+    status: int = 1
+
+
+class PackageListResponse(BaseModel):
+    success: bool
+    data: List[dict] = []
+    total: int = 0
+
+
+@router.get("/packages", response_model=PackageListResponse)
+async def get_packages(_: str = Depends(verify_token)):
+    """获取套餐列表"""
+    with get_db_session() as db:
+        packages = db.query(VipPackage).order_by(VipPackage.sort_order.asc()).all()
+        return PackageListResponse(
+            success=True,
+            data=[p.to_dict() for p in packages],
+            total=len(packages)
+        )
+
+
+@router.post("/packages", response_model=TaskActionResponse)
+async def create_package(request: PackageRequest, _: str = Depends(verify_token)):
+    """创建套餐"""
+    with get_db_session() as db:
+        package = VipPackage(
+            name=request.name,
+            days=request.days,
+            price=request.price,
+            original_price=request.original_price,
+            sort_order=request.sort_order,
+            status=request.status
+        )
+        db.add(package)
+        return TaskActionResponse(success=True, message="套餐创建成功")
+
+
+@router.put("/packages/{package_id}", response_model=TaskActionResponse)
+async def update_package(package_id: int, request: PackageRequest, _: str = Depends(verify_token)):
+    """更新套餐"""
+    with get_db_session() as db:
+        package = db.query(VipPackage).filter(VipPackage.id == package_id).first()
+        if not package:
+            return TaskActionResponse(success=False, message="套餐不存在")
+
+        package.name = request.name
+        package.days = request.days
+        package.price = request.price
+        package.original_price = request.original_price
+        package.sort_order = request.sort_order
+        package.status = request.status
+
+        return TaskActionResponse(success=True, message="套餐更新成功")
+
+
+@router.delete("/packages/{package_id}", response_model=TaskActionResponse)
+async def delete_package(package_id: int, _: str = Depends(verify_token)):
+    """删除套餐"""
+    with get_db_session() as db:
+        package = db.query(VipPackage).filter(VipPackage.id == package_id).first()
+        if not package:
+            return TaskActionResponse(success=False, message="套餐不存在")
+
+        db.delete(package)
+        return TaskActionResponse(success=True, message="套餐已删除")
+
+
+# ==================== 订单管理 ====================
+
+class OrderListResponse(BaseModel):
+    success: bool
+    data: List[dict] = []
+    total: int = 0
+    page: int = 1
+    page_size: int = 20
+
+
+@router.get("/orders", response_model=OrderListResponse)
+async def get_orders(
+    page: int = 1,
+    page_size: int = 20,
+    status: str = "",
+    user_key: str = "",
+    _: str = Depends(verify_token)
+):
+    """获取订单列表"""
+    with get_db_session() as db:
+        query = db.query(PaymentOrder)
+
+        if status:
+            query = query.filter(PaymentOrder.status == status)
+
+        if user_key:
+            query = query.filter(PaymentOrder.user_key.contains(user_key))
+
+        total = query.count()
+
+        orders = query.order_by(PaymentOrder.created_at.desc()) \
+            .offset((page - 1) * page_size) \
+            .limit(page_size) \
+            .all()
+
+        return OrderListResponse(
+            success=True,
+            data=[o.to_dict() for o in orders],
+            total=total,
+            page=page,
+            page_size=page_size
+        )
 
 
 # ==================== 初始化管理员 ====================

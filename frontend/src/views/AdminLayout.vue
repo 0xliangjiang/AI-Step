@@ -19,6 +19,10 @@
           <span class="icon">🎫</span>
           <span>卡密管理</span>
         </router-link>
+        <router-link to="/admin/dashboard/packages" class="nav-item" :class="{ active: $route.path.includes('/packages') }">
+          <span class="icon">💎</span>
+          <span>VIP套餐</span>
+        </router-link>
         <router-link to="/admin/dashboard/records" class="nav-item" :class="{ active: $route.path.includes('/records') }">
           <span class="icon">📋</span>
           <span>刷步记录</span>
@@ -68,6 +72,7 @@ export default {
         '/admin/dashboard/users': '用户管理',
         '/admin/dashboard/tasks': '定时任务',
         '/admin/dashboard/cards': '卡密管理',
+        '/admin/dashboard/packages': 'VIP套餐',
         '/admin/dashboard/records': '刷步记录',
         '/admin/dashboard/stats': '数据统计',
         '/admin/dashboard/config': '系统配置'

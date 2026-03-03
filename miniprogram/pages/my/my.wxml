@@ -2,9 +2,7 @@
 <view class="container">
   <!-- 用户卡片 -->
   <view class="user-card">
-    <view class="avatar">
-      <text>用</text>
-    </view>
+    <view class="avatar">用</view>
     <view class="info">
       <view class="nickname">用户</view>
       <view class="vip-status" wx:if="{{isVip}}">
@@ -12,7 +10,7 @@
         <text class="expire">{{remainingDays}}天后到期</text>
       </view>
       <view class="vip-status" wx:else>
-        <text class="badge expired">普通用户</text>
+        <text class="badge expired">体验用户</text>
       </view>
     </view>
   </view>
@@ -23,7 +21,7 @@
     <view class="card">
       <view class="item">
         <text class="label">会员状态</text>
-        <text class="value">{{isVip ? '有效' : '未开通'}}</text>
+        <text class="value">{{isVip ? '有效' : '体验中'}}</text>
       </view>
       <view class="item" wx:if="{{isVip}}">
         <text class="label">到期时间</text>
@@ -34,25 +32,39 @@
         <text class="value highlight">{{remainingDays}}天</text>
       </view>
     </view>
+    <!-- 开通/续费会员按钮 -->
+    <button class="vip-btn" bindtap="goVip">
+      {{isVip ? '续费会员' : '开通会员'}}
+    </button>
+  </view>
+
+  <!-- 看广告领会员 -->
+  <view class="section" wx:if="{{!isVip || adCanWatch}}">
+    <view class="section-title">免费领会员</view>
+    <view class="ad-card">
+      <view class="ad-info">
+        <view class="ad-title">看广告领会员</view>
+        <view class="ad-desc">每次观看获得 {{adRewardDays}} 天会员</view>
+        <view class="ad-count">今日已看 {{adDailyCount}}/{{adDailyLimit}} 次</view>
+      </view>
+      <button
+        class="ad-btn {{adCanWatch ? '' : 'disabled'}}"
+        bindtap="watchAd"
+        disabled="{{!adCanWatch}}"
+      >
+        {{adCanWatch ? '观看广告' : '今日已达上限'}}
+      </button>
+    </view>
   </view>
 
   <!-- 功能菜单 -->
   <view class="section">
     <view class="section-title">更多</view>
     <view class="menu">
-      <view class="menu-item" bindtap="copyQQ">
-        <text class="menu-text">联系客服</text>
-        <text class="menu-arrow">></text>
-      </view>
       <view class="menu-item" bindtap="aboutUs">
         <text class="menu-text">关于我们</text>
         <text class="menu-arrow">></text>
       </view>
     </view>
-  </view>
-
-  <!-- 充值提示 -->
-  <view class="recharge-tip" wx:if="{{!isVip}}">
-    <text>如需充值会员，请联系客服 QQ: 188177020</text>
   </view>
 </view>

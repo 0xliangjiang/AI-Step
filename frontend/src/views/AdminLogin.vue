@@ -60,7 +60,10 @@ export default {
 
         if (res.data.success) {
           localStorage.setItem('adminToken', res.data.token)
-          this.$router.push('/admin/dashboard/users')
+          // 使用 nextTick 确保 localStorage 已更新
+          this.$nextTick(() => {
+            this.$router.push('/admin/dashboard/users')
+          })
         } else {
           this.error = res.data.message || '登录失败'
         }

@@ -2,12 +2,13 @@
   "pages": [
     "pages/index/index",
     "pages/chat/chat",
-    "pages/my/my"
+    "pages/my/my",
+    "pages/vip/vip"
   ],
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#667eea",
-    "navigationBarTitleText": "AI刷步助手",
+    "navigationBarTitleText": "智问AI助手",
     "navigationBarTextStyle": "white"
   },
   "tabBar": {
@@ -24,7 +25,7 @@
       },
       {
         "pagePath": "pages/chat/chat",
-        "text": "助手",
+        "text": "对话",
         "iconPath": "images/chat.png",
         "selectedIconPath": "images/chat-active.png"
       },

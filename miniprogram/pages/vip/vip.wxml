@@ -1,0 +1,51 @@
+<!--pages/vip/vip.wxml-->
+<view class="container">
+  <!-- 标题 -->
+  <view class="header">
+    <view class="title">开通会员</view>
+    <view class="desc">享受更多权益</view>
+  </view>
+
+  <!-- 套餐列表 -->
+  <view class="packages">
+    <view
+      class="package-item {{selectedPackage && selectedPackage.id === item.id ? 'selected' : ''}}"
+      wx:for="{{packages}}"
+      wx:key="id"
+      bindtap="selectPackage"
+      data-id="{{item.id}}"
+    >
+      <view class="package-name">{{item.name}}</view>
+      <view class="package-days">{{item.days}}天</view>
+      <view class="package-price">
+        <text class="price">¥{{item.price / 100}}</text>
+        <text class="original" wx:if="{{item.original_price}}">¥{{item.original_price / 100}}</text>
+      </view>
+      <view class="check-icon" wx:if="{{selectedPackage && selectedPackage.id === item.id}}">✓</view>
+    </view>
+  </view>
+
+  <!-- 权益说明 -->
+  <view class="benefits">
+    <view class="benefits-title">会员权益</view>
+    <view class="benefit-item">
+      <text class="benefit-icon">✓</text>
+      <text>无限次刷步</text>
+    </view>
+    <view class="benefit-item">
+      <text class="benefit-icon">✓</text>
+      <text>定时自动刷步</text>
+    </view>
+    <view class="benefit-item">
+      <text class="benefit-icon">✓</text>
+      <text>专属客服支持</text>
+    </view>
+  </view>
+
+  <!-- 底部按钮 -->
+  <view class="footer">
+    <button class="pay-btn" bindtap="createOrder" disabled="{{paying || !selectedPackage}}">
+      {{paying ? '支付中...' : selectedPackage ? '立即支付 ¥' + (selectedPackage.price / 100) : '请选择套餐'}}
+    </button>
+  </view>
+</view>

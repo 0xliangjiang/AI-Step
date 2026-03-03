@@ -486,7 +486,7 @@ class ZeppAPI:
                 result = {
                     'success': True,
                     'key': captcha_key,
-                    'image_base64': f"data:image/png;base64,{image_base64}",
+                    'image_base64': image_base64,  # 返回纯base64，前端自行添加前缀
                     'message': '获取验证码成功'
                 }
 
@@ -815,8 +815,18 @@ class ZeppAPI:
 
             # 绑定接口强制走普通 requests 直连，不使用代理与 TLS 指纹
             response = requests.get(url, params=params, timeout=30)
+            self.log(f"完整请求URL: {response.url}")
             self.log(f"响应状态码: {response.status_code}")
             self.log(f"响应内容: {response.text}")
+
+            if response.status_code == 400:
+                # 解析400错误的详细信息
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get('msg', error_data.get('message', response.text[:200]))
+                except:
+                    error_msg = response.text[:200]
+                return {'success': False, 'message': f'请求参数错误: {error_msg}'}
 
             if response.status_code == 200:
                 try:
@@ -1075,7 +1085,7 @@ def generate_qrcode(data: str, save_path: str = None) -> str:
         buffer = BytesIO()
         img.save(buffer, format='PNG')
         img_str = base64.b64encode(buffer.getvalue()).decode()
-        return f"data:image/png;base64,{img_str}"
+        return img_str  # 返回纯base64，前端自行添加前缀
 
 
 # ==================== 便捷函数 ====================

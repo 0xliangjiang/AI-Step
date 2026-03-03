@@ -1,30 +1,24 @@
 <!--pages/chat/chat.wxml-->
 <view class="container">
   <!-- 消息列表 -->
-  <scroll-view
-    class="message-list"
-    scroll-y
-    scroll-into-view="{{scrollToView}}"
-    scroll-with-animation
-  >
+  <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToView}}" scroll-with-animation>
     <view class="message-item {{item.role}}" wx:for="{{messages}}" wx:key="index">
-      <view class="avatar">
-        <image wx:if="{{item.role === 'user'}}" src="/images/user-avatar.png" mode="aspectFill" />
+      <view class="avatar {{item.role}}">
+        <open-data wx:if="{{item.role === 'user'}}" type="userAvatarUrl"></open-data>
         <text wx:else>AI</text>
       </view>
       <view class="content">
         <view class="bubble">
           <text>{{item.content}}</text>
-          <!-- 图片消息 -->
           <view class="images" wx:if="{{item.images && item.images.length > 0}}">
             <image
               wx:for="{{item.images}}"
               wx:for-item="img"
               wx:key="index"
-              src="data:image/png;base64,{{img.data}}"
+              src="{{img.data.indexOf('data:') === 0 ? img.data : 'data:image/png;base64,' + img.data}}"
               mode="widthFix"
               bindtap="previewImage"
-              data-src="data:image/png;base64,{{img.data}}"
+              data-src="{{img.data.indexOf('data:') === 0 ? img.data : 'data:image/png;base64,' + img.data}}"
             />
           </view>
         </view>
@@ -43,9 +37,9 @@
 
   <!-- 快捷操作 -->
   <view class="quick-actions">
-    <view class="quick-btn" bindtap="quickAction" data-action="刷50000步">刷步</view>
-    <view class="quick-btn" bindtap="quickAction" data-action="每天50000步">定时</view>
-    <view class="quick-btn" bindtap="quickAction" data-action="我的定时任务">任务</view>
+    <view class="quick-btn" bindtap="quickAction" data-action="你好">问候</view>
+    <view class="quick-btn" bindtap="quickAction" data-action="帮我写一首诗">写诗</view>
+    <view class="quick-btn" bindtap="quickAction" data-action="今天天气怎么样">闲聊</view>
     <view class="quick-btn" bindtap="quickAction" data-action="会员状态">会员</view>
   </view>
 
@@ -60,8 +54,46 @@
       confirm-type="send"
       bindconfirm="sendMessage"
     />
-    <button class="send-btn" bindtap="sendMessage" disabled="{{loading || !inputText}}">
-      发送
-    </button>
+    <button class="send-btn" bindtap="sendMessage" disabled="{{loading || !inputText}}">发送</button>
+  </view>
+
+  <!-- 分享到微信运动弹窗 -->
+  <view class="share-modal" wx:if="{{showShareModal}}" bindtap="closeShareModal">
+    <view class="share-content" catchtap>
+      <view class="share-icon">🏃</view>
+      <view class="share-title">分享到微信运动</view>
+
+      <!-- 运动类型选择 -->
+      <view class="share-form">
+        <view class="form-item">
+          <text class="form-label">运动类型</text>
+          <picker mode="selector" range="{{sportTypes}}" range-key="name" value="{{selectedSportIndex}}" bindchange="onSportTypeChange">
+            <view class="picker-value">
+              {{sportTypes[selectedSportIndex].name}}
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="form-item">
+          <text class="form-label">运动数值</text>
+          <view class="value-input-wrap">
+            <input
+              class="value-input"
+              type="number"
+              value="{{inputValue}}"
+              bindinput="onValueInput"
+              placeholder="请输入数值"
+            />
+            <text class="value-unit">{{sportTypes[selectedSportIndex].unit}}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="share-btns">
+        <button class="share-btn cancel" bindtap="closeShareModal">取消</button>
+        <button class="share-btn confirm" bindtap="shareToWeRun">分享</button>
+      </view>
+    </view>
   </view>
 </view>

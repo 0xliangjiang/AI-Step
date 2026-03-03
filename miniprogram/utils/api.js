@@ -1,6 +1,9 @@
 // utils/api.js
 const app = getApp()
 
+// API 前缀
+const API_PREFIX = '/api'
+
 /**
  * 封装请求方法
  */
@@ -13,7 +16,7 @@ function request(url, method, data) {
     }
 
     wx.request({
-      url: `${app.globalData.baseUrl}${url}`,
+      url: `${app.globalData.baseUrl}${API_PREFIX}${url}`,
       method: method,
       data: data,
       header: {
@@ -43,7 +46,7 @@ function request(url, method, data) {
 function wxLogin(code) {
   return new Promise((resolve, reject) => {
     wx.request({
-      url: `${app.globalData.baseUrl}/user/wxlogin`,
+      url: `${app.globalData.baseUrl}${API_PREFIX}/user/wxlogin`,
       method: 'POST',
       data: { code },
       success: (res) => {

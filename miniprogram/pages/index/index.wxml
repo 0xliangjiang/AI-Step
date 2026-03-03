@@ -2,19 +2,29 @@
 <view class="container">
   <!-- 头部卡片 -->
   <view class="header-card">
-    <view class="vip-badge" wx:if="{{isVip}}">
-      <text>会员</text>
-    </view>
+    <view class="vip-badge" wx:if="{{isVip}}">会员</view>
     <view class="user-info">
-      <view class="welcome">欢迎使用 AI 刷步助手</view>
+      <view class="welcome">欢迎使用 智问AI助手</view>
       <view class="vip-info" wx:if="{{isVip}}">
         <text>会员有效期：{{vipExpireAt}}</text>
         <text class="remaining">剩余 {{remainingDays}} 天</text>
       </view>
-      <view class="vip-info expired" wx:else>
-        <text>暂未开通会员</text>
+      <view class="vip-info expired" wx:else>体验用户</view>
+    </view>
+  </view>
+
+  <!-- 看广告领会员（会员过期时显示） -->
+  <view class="ad-card" wx:if="{{!isVip}}">
+    <view class="ad-left">
+      <view class="ad-icon">🎁</view>
+      <view class="ad-content">
+        <view class="ad-title">看广告领会员</view>
+        <view class="ad-desc">每次观看获得 {{adRewardDays}} 天会员 · 今日已看 {{adDailyCount}}/{{adDailyLimit}} 次</view>
       </view>
     </view>
+    <button class="ad-btn {{adCanWatch ? '' : 'disabled'}}" bindtap="watchAd" disabled="{{!adCanWatch}}">
+      {{adCanWatch ? '立即观看' : '已达上限'}}
+    </button>
   </view>
 
   <!-- 功能卡片 -->
@@ -22,24 +32,24 @@
     <view class="card-title">功能特点</view>
     <view class="feature-list">
       <view class="feature-item">
-        <view class="icon">🚀</view>
+        <view class="icon">💡</view>
         <view class="text">
-          <view class="title">无需下载APP</view>
-          <view class="desc">微信小程序直接使用</view>
+          <view class="title">智能问答</view>
+          <view class="desc">AI智能理解您的问题</view>
         </view>
       </view>
       <view class="feature-item">
-        <view class="icon">⏰</view>
+        <view class="icon">🎯</view>
         <view class="text">
-          <view class="title">定时自动刷步</view>
-          <view class="desc">设置后每天自动执行</view>
+          <view class="title">精准回答</view>
+          <view class="desc">快速获取专业解答</view>
         </view>
       </view>
       <view class="feature-item">
-        <view class="icon">📈</view>
+        <view class="icon">🔒</view>
         <view class="text">
-          <view class="title">步数智能递增</view>
-          <view class="desc">模拟真实走路节奏</view>
+          <view class="title">隐私安全</view>
+          <view class="desc">对话数据加密保护</view>
         </view>
       </view>
     </view>
@@ -47,12 +57,6 @@
 
   <!-- 开始按钮 -->
   <view class="action-card">
-    <button class="start-btn" bindtap="goChat">
-      开始刷步
-    </button>
-    <view class="contact">
-      <text>遇到问题？联系客服：</text>
-      <text class="qq" bindtap="copyQQ">QQ: 188177020</text>
-    </view>
+    <button class="start-btn" bindtap="goChat">开始对话</button>
   </view>
 </view>

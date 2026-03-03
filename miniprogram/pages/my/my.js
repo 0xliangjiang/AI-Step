@@ -7,15 +7,22 @@ Page({
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
-    loading: true
+    loading: true,
+    // 广告相关
+    adRewardDays: 1,
+    adDailyLimit: 3,
+    adDailyCount: 0,
+    adCanWatch: false
   },
 
   onLoad() {
     this.loadUserInfo()
+    this.loadAdConfig()
   },
 
   onShow() {
     this.loadUserInfo()
+    this.loadAdStatus()
   },
 
   async loadUserInfo() {
@@ -42,28 +49,123 @@ Page({
     }
   },
 
-  // 复制联系QQ
-  copyQQ() {
-    wx.setClipboardData({
-      data: '188177020',
-      success: () => {
-        wx.showToast({ title: '已复制QQ号', icon: 'success' })
+  async loadAdConfig() {
+    try {
+      const res = await api.request('/user/ad-config', 'GET', {})
+      if (res.success) {
+        this.setData({
+          adRewardDays: res.reward_days || 1,
+          adDailyLimit: res.daily_limit || 3
+        })
       }
+    } catch (e) {
+      console.error('获取广告配置失败', e)
+    }
+  },
+
+  async loadAdStatus() {
+    try {
+      const res = await api.request('/user/ad-status', 'GET', {})
+      if (res.success) {
+        const canWatch = res.daily_count < res.daily_limit
+        this.setData({
+          adDailyCount: res.daily_count || 0,
+          adCanWatch: canWatch
+        })
+      }
+    } catch (e) {
+      console.error('获取广告状态失败', e)
+    }
+  },
+
+  // 观看广告
+  watchAd() {
+    // 创建激励视频广告
+    if (!this.rewardedVideoAd) {
+      this.rewardedVideoAd = wx.createRewardedVideoAd({
+        adUnitId: 'adunit-xxxxxxxxxxxxxxxx' // 需要替换为真实的广告位ID
+      })
+
+      this.rewardedVideoAd.onClose((res) => {
+        if (res && res.isEnded) {
+          // 正常播放结束，发放奖励
+          this.claimAdReward()
+        } else {
+          wx.showToast({
+            title: '观看完整才能获得奖励',
+            icon: 'none'
+          })
+        }
+      })
+
+      this.rewardedVideoAd.onError((err) => {
+        console.error('广告加载失败', err)
+        wx.showToast({
+          title: '广告加载失败，请稍后重试',
+          icon: 'none'
+        })
+      })
+    }
+
+    // 显示广告
+    this.rewardedVideoAd.show().catch(() => {
+      // 失败重试
+      this.rewardedVideoAd.load().then(() => this.rewardedVideoAd.show())
     })
+  },
+
+  // 领取广告奖励
+  async claimAdReward() {
+    try {
+      wx.showLoading({ title: '领取中...' })
+      const res = await api.request('/user/watch-ad', 'POST', {})
+      wx.hideLoading()
+
+      if (res.success) {
+        wx.showToast({
+          title: `+${res.reward_days}天会员`,
+          icon: 'success'
+        })
+        // 刷新用户信息和广告状态
+        this.loadUserInfo()
+        this.loadAdStatus()
+      } else {
+        wx.showToast({
+          title: res.message || '领取失败',
+          icon: 'none'
+        })
+      }
+    } catch (e) {
+      wx.hideLoading()
+      wx.showToast({
+        title: '网络错误',
+        icon: 'none'
+      })
+    }
   },
 
   // 关于我们
   aboutUs() {
     wx.showModal({
       title: '关于我们',
-      content: 'AI刷步助手 - 让运动更简单\n\n版本：1.0.0\n联系QQ：188177020',
+      content: '智问AI助手 - 您的智能问答伙伴\n\n版本：1.0.0',
       showCancel: false
+    })
+  },
+
+  // 去开通会员
+  goVip() {
+    wx.navigateTo({
+      url: '/pages/vip/vip'
     })
   },
 
   // 下拉刷新
   onPullDownRefresh() {
-    this.loadUserInfo().then(() => {
+    Promise.all([
+      this.loadUserInfo(),
+      this.loadAdStatus()
+    ]).then(() => {
       wx.stopPullDownRefresh()
     })
   }

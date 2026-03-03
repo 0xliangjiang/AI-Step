@@ -165,6 +165,108 @@ class ChatSession(Base):
         }
 
 
+class AdWatch(Base):
+    """广告观看记录表"""
+    __tablename__ = "ad_watches"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_key = Column(String(100), nullable=False, index=True, comment="用户标识")
+    watch_date = Column(String(10), nullable=False, index=True, comment="观看日期 YYYY-MM-DD")
+    reward_days = Column(Integer, default=1, comment="奖励天数")
+    created_at = Column(DateTime, default=datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_key": self.user_key,
+            "watch_date": self.watch_date,
+            "reward_days": self.reward_days,
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None
+        }
+
+
+class SystemConfig(Base):
+    """系统配置表"""
+    __tablename__ = "system_configs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    config_key = Column(String(50), unique=True, nullable=False, comment="配置键")
+    config_value = Column(String(255), nullable=False, comment="配置值")
+    description = Column(String(255), comment="配置描述")
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "config_key": self.config_key,
+            "config_value": self.config_value,
+            "description": self.description,
+            "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M:%S") if self.updated_at else None
+        }
+
+
+class VipPackage(Base):
+    """VIP套餐表"""
+    __tablename__ = "vip_packages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False, comment="套餐名称")
+    days = Column(Integer, nullable=False, comment="会员天数")
+    price = Column(Integer, nullable=False, comment="价格（分）")
+    original_price = Column(Integer, comment="原价（分）")
+    sort_order = Column(Integer, default=0, comment="排序")
+    status = Column(Integer, default=1, comment="状态: 0禁用 1启用")
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "days": self.days,
+            "price": self.price,
+            "original_price": self.original_price,
+            "sort_order": self.sort_order,
+            "status": self.status,
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None
+        }
+
+
+class PaymentOrder(Base):
+    """支付订单表"""
+    __tablename__ = "payment_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    order_no = Column(String(32), unique=True, nullable=False, index=True, comment="订单号")
+    user_key = Column(String(100), nullable=False, index=True, comment="用户标识")
+    package_id = Column(Integer, nullable=False, comment="套餐ID")
+    package_name = Column(String(50), comment="套餐名称")
+    days = Column(Integer, comment="会员天数")
+    amount = Column(Integer, nullable=False, comment="支付金额（分）")
+    status = Column(String(20), default="pending", comment="状态: pending/paid/failed/refunded")
+    # 微信支付相关
+    prepay_id = Column(String(64), comment="预支付ID")
+    transaction_id = Column(String(32), comment="微信支付订单号")
+    paid_at = Column(DateTime, comment="支付时间")
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "order_no": self.order_no,
+            "user_key": self.user_key,
+            "package_id": self.package_id,
+            "package_name": self.package_name,
+            "days": self.days,
+            "amount": self.amount,
+            "status": self.status,
+            "transaction_id": self.transaction_id,
+            "paid_at": self.paid_at.strftime("%Y-%m-%d %H:%M:%S") if self.paid_at else None,
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None
+        }
+
+
 # 数据库连接（添加连接池配置）
 engine = create_engine(
     DATABASE_URL,

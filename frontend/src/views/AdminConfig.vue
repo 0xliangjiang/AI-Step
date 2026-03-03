@@ -14,6 +14,44 @@
       </div>
     </div>
 
+    <!-- 广告奖励配置 -->
+    <div class="config-section">
+      <h3>广告奖励配置</h3>
+      <div class="config-form">
+        <div class="form-group">
+          <label>每次观看奖励天数</label>
+          <div class="input-row">
+            <input
+              v-model.number="adConfig.ad_reward_days"
+              type="number"
+              min="1"
+              max="30"
+              placeholder="1-30"
+            />
+            <span class="input-unit">天</span>
+          </div>
+          <p class="form-hint">用户观看一次广告获得的会员天数（1-30天）</p>
+        </div>
+        <div class="form-group">
+          <label>每日观看次数上限</label>
+          <div class="input-row">
+            <input
+              v-model.number="adConfig.ad_daily_limit"
+              type="number"
+              min="1"
+              max="20"
+              placeholder="1-20"
+            />
+            <span class="input-unit">次</span>
+          </div>
+          <p class="form-hint">每个用户每天最多观看广告次数（1-20次）</p>
+        </div>
+        <button class="save-btn" @click="saveAdConfig" :disabled="savingAd">
+          {{ savingAd ? '保存中...' : '保存配置' }}
+        </button>
+      </div>
+    </div>
+
     <div class="config-section">
       <h3>修改密码</h3>
       <div class="config-form">
@@ -88,12 +126,17 @@ export default {
         admin_username: '',
         ai_provider: ''
       },
+      adConfig: {
+        ad_reward_days: 1,
+        ad_daily_limit: 3
+      },
       passwordForm: {
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
       },
-      saving: false
+      saving: false,
+      savingAd: false
     }
   },
   mounted() {
@@ -105,12 +148,46 @@ export default {
         const res = await axios.get('/api/admin/config')
         if (res.data.success) {
           this.config = res.data.data
+          if (res.data.data.ad_reward_days) {
+            this.adConfig.ad_reward_days = res.data.data.ad_reward_days
+          }
+          if (res.data.data.ad_daily_limit) {
+            this.adConfig.ad_daily_limit = res.data.data.ad_daily_limit
+          }
         }
       } catch (err) {
         console.error('加载配置失败:', err)
         if (err.response?.status === 401) {
           this.$router.push('/admin')
         }
+      }
+    },
+    async saveAdConfig() {
+      if (this.adConfig.ad_reward_days < 1 || this.adConfig.ad_reward_days > 30) {
+        alert('奖励天数范围为 1-30 天')
+        return
+      }
+      if (this.adConfig.ad_daily_limit < 1 || this.adConfig.ad_daily_limit > 20) {
+        alert('每日次数范围为 1-20 次')
+        return
+      }
+
+      this.savingAd = true
+      try {
+        const res = await axios.put('/api/admin/config', {
+          ad_reward_days: this.adConfig.ad_reward_days,
+          ad_daily_limit: this.adConfig.ad_daily_limit
+        })
+        if (res.data.success) {
+          alert('配置保存成功')
+        } else {
+          alert(res.data.message || '保存失败')
+        }
+      } catch (err) {
+        console.error('保存配置失败:', err)
+        alert('保存失败')
+      } finally {
+        this.savingAd = false
       }
     },
     async changePassword() {
@@ -242,6 +319,28 @@ export default {
 .form-group input:focus {
   outline: none;
   border-color: #4a9eff;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.input-row input {
+  width: 120px;
+  text-align: center;
+}
+
+.input-unit {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+}
+
+.form-hint {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
 }
 
 .save-btn {

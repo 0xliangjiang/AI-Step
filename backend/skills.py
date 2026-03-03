@@ -275,14 +275,13 @@ class StepSkills:
     def _save_and_get_qr(self, user_key: str, email: str, password: str, api: ZeppAPI) -> dict:
         """保存用户信息、绑定手环、获取微信绑定二维码"""
         try:
-            # 绑定流程固定使用普通请求，不走代理与伪装IP
+            # 登录时使用代理（避免限流）
             api = ZeppAPI(
                 email,
                 password,
                 verbose=APP_DEBUG,
                 use_tls=False,
-                use_proxy=False,
-                enable_spoof_ip=False
+                use_proxy=USE_PROXY
             )
 
             # 登录获取 userid
@@ -327,13 +326,18 @@ class StepSkills:
             # 1. 调用 bindband 绑定手环（通过第三方API，自动完成）
             self._log(f"调用 bindband 绑定手环: {email}")
             bind_result = bindband(email, password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
-            self._log(f"bindband 结果: {bind_result}")
+            self._log(f"bindband 结果: success={bind_result.get('success')}, message={bind_result.get('message')}")
 
             bind_msg = ""
             if bind_result['success']:
                 bind_msg = "手环已绑定，"
             else:
-                bind_msg = f"手环绑定失败({bind_result.get('message', '未知错误')})，{self._bind_guide_text()}"
+                # 如果是API Key未配置，给出更明确的提示
+                error_msg = bind_result.get('message', '未知错误')
+                if '未配置部署key' in error_msg or 'NANRUN_API_KEY' in error_msg:
+                    bind_msg = f"手环绑定失败(服务端未配置API Key)，请联系管理员。{self._bind_guide_text()}"
+                else:
+                    bind_msg = f"手环绑定失败({error_msg})，{self._bind_guide_text()}"
 
             # 2. 获取微信绑定二维码（用户扫码绑定微信）
             qr_result = api.get_qrcode_ticket()
@@ -368,8 +372,7 @@ class StepSkills:
                 user.get('zepp_email'), user.get('zepp_password'),
                 verbose=APP_DEBUG,
                 use_tls=False,
-                use_proxy=False,
-                enable_spoof_ip=False
+                use_proxy=USE_PROXY
             )
 
             user_key = user.get('user_key')
