@@ -1,8 +1,27 @@
 // app.js
+const API_BASE_URLS = {
+  // 微信开发者工具 / 开发版
+  develop: 'http://127.0.0.1:8000',
+  // 体验版
+  trial: 'https://api-staging.example.com',
+  // 正式版
+  release: 'https://api.example.com'
+}
+
+function resolveBaseUrl() {
+  try {
+    const accountInfo = wx.getAccountInfoSync()
+    const envVersion = accountInfo?.miniProgram?.envVersion || 'release'
+    return API_BASE_URLS[envVersion] || API_BASE_URLS.release
+  } catch (error) {
+    return API_BASE_URLS.release
+  }
+}
+
 App({
   globalData: {
     // 后端API地址
-    baseUrl: 'http://localhost:8000',
+    baseUrl: resolveBaseUrl(),
     // API 前缀
     apiPrefix: '/api',
     // 用户信息
@@ -12,6 +31,7 @@ App({
   },
 
   onLaunch() {
+    console.log('[App] 当前API地址:', this.globalData.baseUrl)
     // 检查登录状态
     this.checkLogin()
   },

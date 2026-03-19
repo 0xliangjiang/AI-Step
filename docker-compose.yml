@@ -6,6 +6,8 @@ services:
       dockerfile: backend/Dockerfile
     container_name: ai-step-backend
     restart: unless-stopped
+    ports:
+      - "8000:8000"
     environment:
       - MYSQL_HOST=${MYSQL_HOST}
       - MYSQL_PORT=${MYSQL_PORT:-3306}
@@ -16,12 +18,27 @@ services:
       - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
       - MINIMAX_GROUP_ID=${MINIMAX_GROUP_ID:-}
       - GLM_API_KEY=${GLM_API_KEY:-}
+      - NANRUN_API_KEY=${NANRUN_API_KEY:-}
+      - FREE_DAYS=${FREE_DAYS:-3}
+      - AD_REWARD_DAYS=${AD_REWARD_DAYS:-1}
+      - AD_DAILY_LIMIT=${AD_DAILY_LIMIT:-3}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
       - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY:-ai-step-admin-secret-key-2024}
+      - WX_APPID=${WX_APPID:-}
+      - WX_SECRET=${WX_SECRET:-}
+      - WX_MCH_ID=${WX_MCH_ID:-}
+      - WX_API_KEY=${WX_API_KEY:-}
+      - WX_API_V3_KEY=${WX_API_V3_KEY:-}
+      - WX_NOTIFY_URL=${WX_NOTIFY_URL:-}
+      - WX_CERT_PATH=${WX_CERT_PATH:-}
+      - WX_KEY_PATH=${WX_KEY_PATH:-}
       - USE_PROXY=${USE_PROXY:-true}
       - PROXY_API_URL=${PROXY_API_URL:-}
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-30}
+      - CAPTCHA_PENDING_EXPIRE=${CAPTCHA_PENDING_EXPIRE:-300}
       - APP_DEBUG=${APP_DEBUG:-false}
+      - USE_PROXY_MODE=${USE_PROXY_MODE:-true}
     networks:
       - ai-step-network
 
