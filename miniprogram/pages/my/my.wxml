@@ -2,9 +2,10 @@
 <view class="container">
   <!-- 用户卡片 -->
   <view class="user-card">
-    <view class="avatar">用</view>
+    <image class="avatar-image" wx:if="{{userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
+    <view class="avatar" wx:else>{{avatarText}}</view>
     <view class="info">
-      <view class="nickname">用户</view>
+      <view class="nickname">{{isLoggedIn ? (userProfile.nickName || '微信用户') : '未登录'}}</view>
       <view class="vip-status" wx:if="{{isVip}}">
         <text class="badge">VIP会员</text>
         <text class="expire">{{remainingDays}}天后到期</text>
@@ -15,8 +16,16 @@
     </view>
   </view>
 
-  <!-- 会员信息 -->
   <view class="section">
+    <button class="auth-btn primary" wx:if="{{!isLoggedIn}}" bindtap="handleLogin">微信登录</button>
+    <view wx:else class="auth-actions">
+      <button class="auth-btn primary" bindtap="handleLogin">同步微信头像昵称</button>
+      <button class="auth-btn danger" bindtap="handleLogout">退出登录</button>
+    </view>
+  </view>
+
+  <!-- 会员信息 -->
+  <view class="section" wx:if="{{isLoggedIn}}">
     <view class="section-title">会员信息</view>
     <view class="card">
       <view class="item">
@@ -38,8 +47,8 @@
     </button>
   </view>
 
-  <!-- 看广告领会员 -->
-  <view class="section" wx:if="{{!isVip || adCanWatch}}">
+  <!-- 看广告领会员 - 暂时隐藏 -->
+  <!-- <view class="section" wx:if="{{isLoggedIn && (!isVip || adCanWatch)}}">
     <view class="section-title">免费领会员</view>
     <view class="ad-card">
       <view class="ad-info">
@@ -55,7 +64,7 @@
         {{adCanWatch ? '观看广告' : '今日已达上限'}}
       </button>
     </view>
-  </view>
+  </view> -->
 
   <!-- 功能菜单 -->
   <view class="section">

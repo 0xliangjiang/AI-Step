@@ -94,6 +94,7 @@ class ChatResponse(BaseModel):
     success: bool
     reply: str
     images: List[Dict] = []
+    function_result: Optional[Dict] = None
 
 
 class UserInfoResponse(BaseModel):
@@ -164,6 +165,8 @@ async def user_login(request: LoginRequest):
 
 class WxLoginRequest(BaseModel):
     code: str
+    nickname: str = ""
+    avatar_url: str = ""
 
 
 @app.post("/api/user/wxlogin")
@@ -172,6 +175,8 @@ async def wx_login(request: WxLoginRequest):
     import requests
 
     code = request.code.strip()
+    nickname = request.nickname.strip()
+    avatar_url = request.avatar_url.strip()
     if not code:
         raise HTTPException(status_code=400, detail="code不能为空")
 
@@ -201,16 +206,28 @@ async def wx_login(request: WxLoginRequest):
             # 新用户注册，赠送免费天数
             user = User(
                 user_key=openid,
+                nickname=nickname or None,
+                avatar_url=avatar_url or None,
                 vip_expire_at=datetime.now() + timedelta(days=FREE_DAYS)
             )
             db.add(user)
             print(f"[WxLogin] 新用户 {openid} 注册，赠送 {FREE_DAYS} 天会员")
+        else:
+            if nickname:
+                user.nickname = nickname
+            if avatar_url:
+                user.avatar_url = avatar_url
 
     # 初始化用户会话
     if openid not in user_sessions:
         user_sessions[openid] = []
 
-    return {"success": True, "openid": openid}
+    return {
+        "success": True,
+        "openid": openid,
+        "nickname": nickname,
+        "avatar_url": avatar_url
+    }
 
 
 @app.get("/api/user/info", response_model=UserInfoResponse)
@@ -253,6 +270,12 @@ async def chat(request: ChatRequest):
 
     # 调用 AI
     result = ai_client.chat(user_key, messages, message)
+    function_result = result.get("function_result") or {}
+    if not result.get("success", False):
+        print(
+            f"[Chat] failed user_key={user_key} message={message} "
+            f"reply={result.get('reply')} function_result={function_result}"
+        )
 
     # 保存消息到数据库
     save_chat_message(user_key, "user", message)
@@ -261,7 +284,8 @@ async def chat(request: ChatRequest):
     return ChatResponse(
         success=result.get("success", False),
         reply=result.get("reply", ""),
-        images=result.get("images", [])
+        images=result.get("images", []),
+        function_result=result.get("function_result")
     )
 
 

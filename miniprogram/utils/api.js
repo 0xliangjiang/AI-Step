@@ -82,10 +82,15 @@ function checkVip() {
   return request('/user/vip', 'GET', {})
 }
 
+function isLoggedIn() {
+  return !!(app.globalData.openid || wx.getStorageSync('openid'))
+}
+
 module.exports = {
   request,
   wxLogin,
   getUserInfo,
   chat,
-  checkVip
+  checkVip,
+  isLoggedIn
 }

@@ -446,6 +446,7 @@ class UpdateConfigRequest(BaseModel):
     admin_password: Optional[str] = None
     ad_reward_days: Optional[int] = None
     ad_daily_limit: Optional[int] = None
+    stealth_mode: Optional[bool] = None
 
 
 def get_or_create_config(db, key: str, default_value: str, description: str = "") -> SystemConfig:
@@ -472,9 +473,14 @@ async def get_config(_: str = Depends(verify_token)):
         ad_limit_config = db.query(SystemConfig).filter(
             SystemConfig.config_key == "ad_daily_limit"
         ).first()
+        # 获取伪装模式配置
+        stealth_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "stealth_mode"
+        ).first()
 
         ad_reward_days = int(ad_reward_config.config_value) if ad_reward_config else AD_REWARD_DAYS
         ad_daily_limit = int(ad_limit_config.config_value) if ad_limit_config else AD_DAILY_LIMIT
+        stealth_mode = stealth_config.config_value.lower() in ("1", "true", "yes", "on") if stealth_config else True
 
         return ConfigResponse(
             success=True,
@@ -482,7 +488,8 @@ async def get_config(_: str = Depends(verify_token)):
                 "admin_username": ADMIN_USERNAME,
                 "ai_provider": "minimax/glm",
                 "ad_reward_days": ad_reward_days,
-                "ad_daily_limit": ad_daily_limit
+                "ad_daily_limit": ad_daily_limit,
+                "stealth_mode": stealth_mode
             }
         )
 
@@ -502,6 +509,10 @@ async def update_config(request: UpdateConfigRequest, _: str = Depends(verify_to
                 return ConfigResponse(success=False, message="每日观看次数范围为 1-20")
             config = get_or_create_config(db, "ad_daily_limit", AD_DAILY_LIMIT, "每日观看广告次数上限")
             config.config_value = str(request.ad_daily_limit)
+
+        if request.stealth_mode is not None:
+            config = get_or_create_config(db, "stealth_mode", "true", "伪装模式开关")
+            config.config_value = "true" if request.stealth_mode else "false"
 
         return ConfigResponse(
             success=True,

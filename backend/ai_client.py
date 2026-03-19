@@ -3,13 +3,29 @@
 AI 模型客户端 - 支持 MiniMax 和 GLM
 """
 import json
+import traceback
 import requests
 from typing import List, Dict, Any
 from config import (
     AI_PROVIDER, MINIMAX_API_KEY, MINIMAX_GROUP_ID,
-    GLM_API_KEY, SYSTEM_PROMPT, ERROR_MESSAGE, APP_DEBUG
+    GLM_API_KEY, SYSTEM_PROMPT, STEALTH_PROMPT, ERROR_MESSAGE, APP_DEBUG
 )
 from skills import FUNCTIONS, execute_function, skills
+from models import get_db_session, SystemConfig
+
+
+def is_stealth_mode() -> bool:
+    """检查是否开启伪装模式"""
+    try:
+        with get_db_session() as db:
+            config = db.query(SystemConfig).filter(
+                SystemConfig.config_key == "stealth_mode"
+            ).first()
+            if config:
+                return config.config_value.lower() in ("1", "true", "yes", "on")
+            return True  # 默认开启伪装模式，更安全
+    except Exception:
+        return True  # 出错时默认开启伪装模式
 
 
 class AIClient:
@@ -35,14 +51,22 @@ class AIClient:
                 'function_result': dict # 函数执行结果
             }
         """
+        # 检查是否开启伪装模式
+        stealth = is_stealth_mode()
+
         # 获取用户状态
         user_status = skills.get_user_status(user_key)
 
-        # 构建系统提示
-        system_prompt = SYSTEM_PROMPT.format(
-            user_key=user_key,
-            user_status=user_status
-        )
+        # 根据模式选择系统提示
+        if stealth:
+            # 伪装模式：正常AI对话助手
+            system_prompt = STEALTH_PROMPT.format(user_key=user_key)
+        else:
+            # 正常模式：刷步助手
+            system_prompt = SYSTEM_PROMPT.format(
+                user_key=user_key,
+                user_status=user_status
+            )
 
         # 添加用户消息
         messages = messages.copy()
@@ -50,15 +74,25 @@ class AIClient:
 
         try:
             if self.provider == "minimax":
-                return self._chat_minimax(system_prompt, messages, user_key)
+                return self._chat_minimax(system_prompt, messages, user_key, stealth)
             elif self.provider == "glm":
-                return self._chat_glm(system_prompt, messages, user_key)
+                return self._chat_glm(system_prompt, messages, user_key, stealth)
             else:
                 return {"success": False, "reply": f"不支持的AI提供商: {self.provider}"}
         except Exception as e:
-            return {"success": False, "reply": ERROR_MESSAGE}
+            print(f"[AIClient] chat exception: {e}")
+            traceback.print_exc()
+            return {
+                "success": False,
+                "reply": ERROR_MESSAGE,
+                "function_result": {
+                    "success": False,
+                    "message": str(e),
+                    "debug_message": traceback.format_exc() if APP_DEBUG else ""
+                }
+            }
 
-    def _chat_minimax(self, system_prompt: str, messages: List[Dict], user_key: str) -> Dict:
+    def _chat_minimax(self, system_prompt: str, messages: List[Dict], user_key: str, stealth: bool = False) -> Dict:
         """MiniMax API 调用"""
         url = f"https://api.minimax.chat/v1/text/chatcompletion_v2"
 
@@ -77,24 +111,36 @@ class AIClient:
 
         payload = {
             "model": "abab6.5s-chat",
-            "messages": mm_messages,
-            "tools": [{"type": "function", "function": f} for f in FUNCTIONS],
-            "tool_choice": "auto"
+            "messages": mm_messages
         }
+
+        # 只在非伪装模式下添加工具
+        if not stealth:
+            payload["tools"] = [{"type": "function", "function": f} for f in FUNCTIONS]
+            payload["tool_choice"] = "auto"
 
         response = requests.post(url, headers=headers, json=payload, timeout=60)
         data = response.json()
 
         if "choices" not in data:
-            return {"success": False, "reply": ERROR_MESSAGE}
+            print(f"[AIClient] MiniMax invalid response: {data}")
+            return {
+                "success": False,
+                "reply": ERROR_MESSAGE,
+                "function_result": {
+                    "success": False,
+                    "message": f"MiniMax返回异常: {data}"
+                }
+            }
 
         choice = data["choices"][0]
         message = choice.get("message", {})
 
-        # 检查是否有函数调用
-        tool_calls = message.get("tool_calls", [])
-        if tool_calls:
-            return self._handle_function_call(tool_calls[0], user_key)
+        # 检查是否有函数调用（仅在非伪装模式下）
+        if not stealth:
+            tool_calls = message.get("tool_calls", [])
+            if tool_calls:
+                return self._handle_function_call(tool_calls[0], user_key)
 
         return {
             "success": True,
@@ -102,7 +148,7 @@ class AIClient:
             "images": []
         }
 
-    def _chat_glm(self, system_prompt: str, messages: List[Dict], user_key: str) -> Dict:
+    def _chat_glm(self, system_prompt: str, messages: List[Dict], user_key: str, stealth: bool = False) -> Dict:
         """GLM API 调用"""
         url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 
@@ -121,24 +167,36 @@ class AIClient:
 
         payload = {
             "model": "glm-4",
-            "messages": glm_messages,
-            "tools": [{"type": "function", "function": f} for f in FUNCTIONS],
-            "tool_choice": "auto"
+            "messages": glm_messages
         }
+
+        # 只在非伪装模式下添加工具
+        if not stealth:
+            payload["tools"] = [{"type": "function", "function": f} for f in FUNCTIONS]
+            payload["tool_choice"] = "auto"
 
         response = requests.post(url, headers=headers, json=payload, timeout=60)
         data = response.json()
 
         if "choices" not in data:
-            return {"success": False, "reply": ERROR_MESSAGE}
+            print(f"[AIClient] GLM invalid response: {data}")
+            return {
+                "success": False,
+                "reply": ERROR_MESSAGE,
+                "function_result": {
+                    "success": False,
+                    "message": f"GLM返回异常: {data}"
+                }
+            }
 
         choice = data["choices"][0]
         message = choice.get("message", {})
 
-        # 检查是否有函数调用
-        tool_calls = message.get("tool_calls", [])
-        if tool_calls:
-            return self._handle_function_call(tool_calls[0], user_key)
+        # 检查是否有函数调用（仅在非伪装模式下）
+        if not stealth:
+            tool_calls = message.get("tool_calls", [])
+            if tool_calls:
+                return self._handle_function_call(tool_calls[0], user_key)
 
         return {
             "success": True,

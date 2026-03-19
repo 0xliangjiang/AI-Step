@@ -14,6 +14,27 @@
       </div>
     </div>
 
+    <!-- 伪装模式配置 -->
+    <div class="config-section">
+      <h3>小程序模式</h3>
+      <div class="config-form">
+        <div class="form-group">
+          <label>伪装模式</label>
+          <div class="switch-row">
+            <label class="switch">
+              <input type="checkbox" v-model="stealthMode" @change="saveStealthMode">
+              <span class="slider"></span>
+            </label>
+            <span class="switch-label">{{ stealthMode ? '已开启' : '已关闭' }}</span>
+          </div>
+          <p class="form-hint">
+            开启后：AI 表现为正常的对话助手<br>
+            关闭后：AI 表现为刷步助手（审核时请保持开启）
+          </p>
+        </div>
+      </div>
+    </div>
+
     <!-- 广告奖励配置 -->
     <div class="config-section">
       <h3>广告奖励配置</h3>
@@ -126,6 +147,7 @@ export default {
         admin_username: '',
         ai_provider: ''
       },
+      stealthMode: true,
       adConfig: {
         ad_reward_days: 1,
         ad_daily_limit: 3
@@ -136,7 +158,8 @@ export default {
         confirmPassword: ''
       },
       saving: false,
-      savingAd: false
+      savingAd: false,
+      savingStealth: false
     }
   },
   mounted() {
@@ -154,12 +177,35 @@ export default {
           if (res.data.data.ad_daily_limit) {
             this.adConfig.ad_daily_limit = res.data.data.ad_daily_limit
           }
+          if (res.data.data.stealth_mode !== undefined) {
+            this.stealthMode = res.data.data.stealth_mode
+          }
         }
       } catch (err) {
         console.error('加载配置失败:', err)
         if (err.response?.status === 401) {
           this.$router.push('/admin')
         }
+      }
+    },
+    async saveStealthMode() {
+      this.savingStealth = true
+      try {
+        const res = await axios.put('/api/admin/config', {
+          stealth_mode: this.stealthMode
+        })
+        if (res.data.success) {
+          // 静默保存成功
+        } else {
+          alert(res.data.message || '保存失败')
+          this.stealthMode = !this.stealthMode
+        }
+      } catch (err) {
+        console.error('保存伪装模式失败:', err)
+        alert('保存失败')
+        this.stealthMode = !this.stealthMode
+      } finally {
+        this.savingStealth = false
       }
     },
     async saveAdConfig() {
@@ -415,5 +461,62 @@ export default {
 
 .info-box li {
   margin-bottom: 4px;
+}
+
+/* 开关样式 */
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 26px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  transition: 0.3s;
+  border-radius: 26px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background: linear-gradient(135deg, #4a9eff 0%, #3b82f6 100%);
+}
+
+input:checked + .slider:before {
+  transform: translateX(24px);
+}
+
+.switch-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
 }
 </style>

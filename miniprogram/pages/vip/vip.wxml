@@ -30,15 +30,15 @@
     <view class="benefits-title">会员权益</view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
-      <text>无限次刷步</text>
+      <text>无限运动数据分析</text>
     </view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
-      <text>定时自动刷步</text>
+      <text>优先数据同步</text>
     </view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
-      <text>专属客服支持</text>
+      <text>专属运动方案</text>
     </view>
   </view>
 

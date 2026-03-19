@@ -1,12 +1,21 @@
 // pages/my/my.js
 const api = require('../../utils/api')
 
+function parseDateTime(value) {
+  if (!value) return null
+  return new Date(value.replace(/-/g, '/'))
+}
+
 Page({
   data: {
     userInfo: null,
+    userProfile: null,
+    avatarText: '未',
+    hasProfile: false,
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
+    isLoggedIn: false,
     loading: true,
     // 广告相关
     adRewardDays: 1,
@@ -16,31 +25,69 @@ Page({
   },
 
   onLoad() {
+    this.syncLoginState()
     this.loadUserInfo()
     this.loadAdConfig()
   },
 
   onShow() {
+    this.syncLoginState()
     this.loadUserInfo()
     this.loadAdStatus()
   },
 
+  syncLoginState() {
+    const app = getApp()
+    const userProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const isLoggedIn = !!(app.globalData.openid || wx.getStorageSync('openid'))
+    const hasProfile = !!(userProfile && (userProfile.nickName || userProfile.avatarUrl))
+    const avatarText = isLoggedIn
+      ? ((userProfile && userProfile.nickName) ? userProfile.nickName.charAt(0) : '微')
+      : '未'
+
+    this.setData({
+      userProfile,
+      isLoggedIn,
+      hasProfile,
+      avatarText
+    })
+  },
+
   async loadUserInfo() {
+    if (!api.isLoggedIn()) {
+      this.setData({
+        userInfo: null,
+        vipExpireAt: null,
+        isVip: false,
+        remainingDays: 0,
+        loading: false,
+        isLoggedIn: false
+      })
+      return
+    }
+
     try {
       const res = await api.getUserInfo()
       if (res.success) {
         const data = res.data
         const now = new Date()
-        const expireAt = data.vip_expire_at ? new Date(data.vip_expire_at) : null
+        const expireAt = parseDateTime(data.vip_expire_at)
         const isVip = expireAt && expireAt > now
         const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
 
         this.setData({
           userInfo: data,
+          userProfile: {
+            nickName: data.nickname || (this.data.userProfile && this.data.userProfile.nickName) || '',
+            avatarUrl: data.avatar_url || (this.data.userProfile && this.data.userProfile.avatarUrl) || ''
+          },
           vipExpireAt: data.vip_expire_at,
           isVip,
           remainingDays,
-          loading: false
+          loading: false,
+          isLoggedIn: true,
+          hasProfile: !!(data.nickname || data.avatar_url || (this.data.userProfile && (this.data.userProfile.nickName || this.data.userProfile.avatarUrl))),
+          avatarText: data.nickname ? data.nickname.charAt(0) : this.data.avatarText
         })
       }
     } catch (e) {
@@ -64,6 +111,14 @@ Page({
   },
 
   async loadAdStatus() {
+    if (!api.isLoggedIn()) {
+      this.setData({
+        adDailyCount: 0,
+        adCanWatch: false
+      })
+      return
+    }
+
     try {
       const res = await api.request('/user/ad-status', 'GET', {})
       if (res.success) {
@@ -78,12 +133,85 @@ Page({
     }
   },
 
+  async handleLogin() {
+    const app = getApp()
+
+    try {
+      wx.showLoading({ title: '登录中...' })
+      await app.loginWithWechat()
+      wx.hideLoading()
+      this.syncLoginState()
+      await Promise.all([
+        this.loadUserInfo(),
+        this.loadAdStatus()
+      ])
+      wx.showToast({
+        title: this.data.isLoggedIn ? '资料已同步' : '登录成功',
+        icon: 'success'
+      })
+    } catch (e) {
+      wx.hideLoading()
+      wx.showToast({
+        title: e.message || '登录失败',
+        icon: 'none'
+      })
+    }
+  },
+
+  handleLogout() {
+    const app = getApp()
+
+    wx.showModal({
+      title: '退出登录',
+      content: '退出后需要重新授权登录，确定继续？',
+      success: ({ confirm }) => {
+        if (!confirm) return
+
+        app.logout()
+        this.setData({
+          userInfo: null,
+          userProfile: null,
+          avatarText: '未',
+          vipExpireAt: null,
+          remainingDays: 0,
+          isVip: false,
+          isLoggedIn: false,
+          adDailyCount: 0,
+          adCanWatch: false
+        })
+
+        wx.showToast({
+          title: '已退出登录',
+          icon: 'success'
+        })
+      }
+    })
+  },
+
   // 观看广告
   watchAd() {
+    if (!api.isLoggedIn()) {
+      wx.showToast({
+        title: '请先登录',
+        icon: 'none'
+      })
+      return
+    }
+
     // 创建激励视频广告
     if (!this.rewardedVideoAd) {
+      const app = getApp()
+      const adUnitId = app.globalData.adConfig.rewardedVideoAdUnitId
+      if (!adUnitId || adUnitId === 'adunit-xxxxxxxxxxxxxxxx') {
+        wx.showToast({
+          title: '广告位未配置',
+          icon: 'none'
+        })
+        return
+      }
+
       this.rewardedVideoAd = wx.createRewardedVideoAd({
-        adUnitId: 'adunit-xxxxxxxxxxxxxxxx' // 需要替换为真实的广告位ID
+        adUnitId
       })
 
       this.rewardedVideoAd.onClose((res) => {
@@ -155,6 +283,14 @@ Page({
 
   // 去开通会员
   goVip() {
+    if (!api.isLoggedIn()) {
+      wx.showToast({
+        title: '请先登录',
+        icon: 'none'
+      })
+      return
+    }
+
     wx.navigateTo({
       url: '/pages/vip/vip'
     })

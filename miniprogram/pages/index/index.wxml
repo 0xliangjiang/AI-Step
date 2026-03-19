@@ -3,18 +3,23 @@
   <!-- 头部卡片 -->
   <view class="header-card">
     <view class="vip-badge" wx:if="{{isVip}}">会员</view>
-    <view class="user-info">
-      <view class="welcome">欢迎使用 智问AI助手</view>
-      <view class="vip-info" wx:if="{{isVip}}">
-        <text>会员有效期：{{vipExpireAt}}</text>
-        <text class="remaining">剩余 {{remainingDays}} 天</text>
+    <view class="profile-row">
+      <image class="profile-avatar" wx:if="{{userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
+      <view class="profile-avatar profile-avatar-fallback" wx:else>{{avatarText}}</view>
+      <view class="user-info">
+        <view class="welcome">你好，{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
+        <view class="subtitle">欢迎使用 运动AI助手</view>
+        <view class="vip-info" wx:if="{{isVip}}">
+          <text>会员有效期：{{vipExpireAt}}</text>
+          <text class="remaining">剩余 {{remainingDays}} 天</text>
+        </view>
+        <view class="vip-info expired" wx:else>体验用户</view>
       </view>
-      <view class="vip-info expired" wx:else>体验用户</view>
     </view>
   </view>
 
-  <!-- 看广告领会员（会员过期时显示） -->
-  <view class="ad-card" wx:if="{{!isVip}}">
+  <!-- 看广告领会员（会员过期时显示）- 暂时隐藏 -->
+  <!-- <view class="ad-card" wx:if="{{!isVip}}">
     <view class="ad-left">
       <view class="ad-icon">🎁</view>
       <view class="ad-content">
@@ -25,31 +30,31 @@
     <button class="ad-btn {{adCanWatch ? '' : 'disabled'}}" bindtap="watchAd" disabled="{{!adCanWatch}}">
       {{adCanWatch ? '立即观看' : '已达上限'}}
     </button>
-  </view>
+  </view> -->
 
   <!-- 功能卡片 -->
   <view class="feature-card">
     <view class="card-title">功能特点</view>
     <view class="feature-list">
       <view class="feature-item">
-        <view class="icon">💡</view>
+        <view class="icon">🏃</view>
         <view class="text">
-          <view class="title">智能问答</view>
-          <view class="desc">AI智能理解您的问题</view>
+          <view class="title">运动追踪</view>
+          <view class="desc">记录每日运动数据</view>
+        </view>
+      </view>
+      <view class="feature-item">
+        <view class="icon">📊</view>
+        <view class="text">
+          <view class="title">数据分析</view>
+          <view class="desc">智能分析运动效果</view>
         </view>
       </view>
       <view class="feature-item">
         <view class="icon">🎯</view>
         <view class="text">
-          <view class="title">精准回答</view>
-          <view class="desc">快速获取专业解答</view>
-        </view>
-      </view>
-      <view class="feature-item">
-        <view class="icon">🔒</view>
-        <view class="text">
-          <view class="title">隐私安全</view>
-          <view class="desc">对话数据加密保护</view>
+          <view class="title">目标设定</view>
+          <view class="desc">制定个性化运动计划</view>
         </view>
       </view>
     </view>
@@ -57,6 +62,6 @@
 
   <!-- 开始按钮 -->
   <view class="action-card">
-    <button class="start-btn" bindtap="goChat">开始对话</button>
+    <button class="start-btn" bindtap="goChat">开始记录</button>
   </view>
 </view>

@@ -7,6 +7,7 @@ import string
 import sys
 import os
 import time
+import traceback
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
@@ -245,7 +246,10 @@ class StepSkills:
             }
 
         self._log(f"获取人工验证码也失败: {result.get('message')}")
-        return {'success': False, 'message': ERROR_MESSAGE}
+        return {
+            'success': False,
+            'message': f"获取验证码失败：{result.get('message', last_error or ERROR_MESSAGE)}"
+        }
 
     def _complete_registration(self, user_key: str, captcha_code: str) -> dict:
         """使用用户输入的验证码完成注册"""
@@ -420,7 +424,8 @@ class StepSkills:
             return {'success': False, 'message': '获取二维码失败，请重试'}
         except Exception as e:
             self._log(f"获取绑定二维码异常: {e}")
-            return {'success': False, 'message': ERROR_MESSAGE}
+            traceback.print_exc()
+            return {'success': False, 'message': f'获取绑定二维码失败：{str(e)}'}
 
     def _get_bindqr_for_user(self, user: User, auto_trigger: bool = False) -> dict:
         """为已注册用户绑定手环并获取微信绑定二维码"""
@@ -616,7 +621,7 @@ class StepSkills:
             return {
                 'success': True,
                 'steps': steps,
-                'message': f'刷步成功！已将步数修改为 {steps} 步'
+                'message': f'完成！已设置 {steps} 步'
             }
 
         return {
@@ -943,61 +948,74 @@ FUNCTIONS = [
 def execute_function(function_name: str, arguments: dict) -> dict:
     """执行函数调用"""
     from scheduler import scheduler
+    try:
+        if function_name == "register_zepp_account":
+            result = skills.register_zepp_account(
+                arguments.get("user_key"),
+                arguments.get("captcha_code")
+            )
+        elif function_name == "get_bindqr":
+            result = skills.get_bindqr(arguments.get("user_key"))
+        elif function_name == "bind_device":
+            result = skills.bind_device(arguments.get("user_key"))
+        elif function_name == "check_bindstatus":
+            result = skills.check_bindstatus(arguments.get("user_key"))
+        elif function_name == "brush_step":
+            result = skills.brush_step(
+                arguments.get("user_key"),
+                arguments.get("steps")
+            )
+        elif function_name == "create_scheduled_task":
+            result = scheduler.create_task(
+                arguments.get("user_key"),
+                arguments.get("target_steps"),
+                arguments.get("start_hour", 8),
+                arguments.get("end_hour", 21)
+            )
+        elif function_name == "get_scheduled_task":
+            task = scheduler.get_task(arguments.get("user_key"))
+            if task:
+                status_text = {"active": "执行中", "paused": "已暂停", "cancelled": "已取消"}.get(task.get("status"), task.get("status"))
+                result = {
+                    "success": True,
+                    "task": task,
+                    "message": f"您有一个定时任务：每天 {task.get('start_hour')}:00-{task.get('end_hour')}:00 完成 {task.get('target_steps')} 步，状态：{status_text}，当前进度：{task.get('current_steps', 0)} 步"
+                }
+            else:
+                result = {"success": False, "message": "您还没有设置定时任务"}
+        elif function_name == "get_scheduled_task_detail":
+            result = scheduler.get_task_detail(arguments.get("user_key"))
+        elif function_name == "update_scheduled_task":
+            result = scheduler.update_task(
+                arguments.get("user_key"),
+                arguments.get("target_steps"),
+                arguments.get("start_hour"),
+                arguments.get("end_hour")
+            )
+        elif function_name == "cancel_scheduled_task":
+            result = scheduler.cancel_task(arguments.get("user_key"))
+        elif function_name == "pause_scheduled_task":
+            result = scheduler.pause_task(arguments.get("user_key"))
+        elif function_name == "resume_scheduled_task":
+            result = scheduler.resume_task(arguments.get("user_key"))
+        elif function_name == "check_vip":
+            result = skills.check_vip(arguments.get("user_key"))
+        elif function_name == "use_card":
+            result = skills.use_card(
+                arguments.get("user_key"),
+                arguments.get("card_key")
+            )
+        else:
+            result = {"success": False, "message": f"未知函数: {function_name}"}
 
-    if function_name == "register_zepp_account":
-        return skills.register_zepp_account(
-            arguments.get("user_key"),
-            arguments.get("captcha_code")
-        )
-    elif function_name == "get_bindqr":
-        return skills.get_bindqr(arguments.get("user_key"))
-    elif function_name == "bind_device":
-        return skills.bind_device(arguments.get("user_key"))
-    elif function_name == "check_bindstatus":
-        return skills.check_bindstatus(arguments.get("user_key"))
-    elif function_name == "brush_step":
-        return skills.brush_step(
-            arguments.get("user_key"),
-            arguments.get("steps")
-        )
-    elif function_name == "create_scheduled_task":
-        return scheduler.create_task(
-            arguments.get("user_key"),
-            arguments.get("target_steps"),
-            arguments.get("start_hour", 8),
-            arguments.get("end_hour", 21)
-        )
-    elif function_name == "get_scheduled_task":
-        task = scheduler.get_task(arguments.get("user_key"))
-        if task:
-            status_text = {"active": "执行中", "paused": "已暂停", "cancelled": "已取消"}.get(task.get("status"), task.get("status"))
-            return {
-                "success": True,
-                "task": task,
-                "message": f"您有一个定时任务：每天 {task.get('start_hour')}:00-{task.get('end_hour')}:00 完成 {task.get('target_steps')} 步，状态：{status_text}，当前进度：{task.get('current_steps', 0)} 步"
-            }
-        return {"success": False, "message": "您还没有设置定时任务"}
-    elif function_name == "get_scheduled_task_detail":
-        return scheduler.get_task_detail(arguments.get("user_key"))
-    elif function_name == "update_scheduled_task":
-        return scheduler.update_task(
-            arguments.get("user_key"),
-            arguments.get("target_steps"),
-            arguments.get("start_hour"),
-            arguments.get("end_hour")
-        )
-    elif function_name == "cancel_scheduled_task":
-        return scheduler.cancel_task(arguments.get("user_key"))
-    elif function_name == "pause_scheduled_task":
-        return scheduler.pause_task(arguments.get("user_key"))
-    elif function_name == "resume_scheduled_task":
-        return scheduler.resume_task(arguments.get("user_key"))
-    elif function_name == "check_vip":
-        return skills.check_vip(arguments.get("user_key"))
-    elif function_name == "use_card":
-        return skills.use_card(
-            arguments.get("user_key"),
-            arguments.get("card_key")
-        )
-    else:
-        return {"success": False, "message": f"未知函数: {function_name}"}
+        if not result.get("success", False):
+            print(f"[Skills] function={function_name} failed args={arguments} result={result}")
+        return result
+    except Exception as e:
+        print(f"[Skills] function={function_name} exception args={arguments} error={e}")
+        traceback.print_exc()
+        return {
+            "success": False,
+            "message": f"{function_name} 执行异常：{str(e)}",
+            "debug_message": traceback.format_exc()
+        }

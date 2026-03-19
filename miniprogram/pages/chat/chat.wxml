@@ -1,22 +1,67 @@
 <!--pages/chat/chat.wxml-->
-<view class="container">
-  <!-- 消息列表 -->
-  <scroll-view class="message-list" scroll-y scroll-into-view="{{scrollToView}}" scroll-with-animation>
-    <view class="message-item {{item.role}}" wx:for="{{messages}}" wx:key="index">
-      <view class="avatar {{item.role}}">
-        <open-data wx:if="{{item.role === 'user'}}" type="userAvatarUrl"></open-data>
+<view class="page">
+  <view class="chat-header">
+    <image class="chat-header-avatar" wx:if="{{userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
+    <view class="chat-header-avatar chat-header-avatar-fallback" wx:else>{{avatarText}}</view>
+    <view class="chat-header-info">
+      <view class="chat-header-name">{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
+      <view class="chat-header-desc">运动AI助手在线</view>
+    </view>
+  </view>
+  <!-- 消息区域 -->
+  <scroll-view
+    class="message-area"
+    scroll-y
+    scroll-into-view="{{scrollToView}}"
+    scroll-with-animation
+  >
+    <!-- 欢迎信息 -->
+    <view class="welcome" wx:if="{{messages.length === 0}}">
+      <view class="welcome-icon">
+        <text class="welcome-logo">AI</text>
+      </view>
+      <view class="welcome-title">运动AI助手</view>
+      <view class="welcome-desc">你好，我是你的运动助手</view>
+      <view class="welcome-desc">有什么可以帮助你的吗？</view>
+
+      <view class="suggest-list">
+        <view class="suggest-item" bindtap="quickAction" data-action="帮我记录今天的运动数据">
+          <text class="suggest-icon">✅</text>
+          <text class="suggest-text">运动打卡</text>
+        </view>
+        <view class="suggest-item" bindtap="quickAction" data-action="查询我今天的步数">
+          <text class="suggest-icon">👟</text>
+          <text class="suggest-text">步数查询</text>
+        </view>
+        <view class="suggest-item" bindtap="quickAction" data-action="帮我制定一个健身计划">
+          <text class="suggest-icon">📋</text>
+          <text class="suggest-text">健身计划</text>
+        </view>
+        <view class="suggest-item" bindtap="quickAction" data-action="分享一些跑步技巧">
+          <text class="suggest-icon">🏃</text>
+          <text class="suggest-text">跑步技巧</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 消息列表 -->
+    <view wx:for="{{messages}}" wx:key="index" class="msg {{item.role}}">
+      <view class="msg-avatar">
+        <image wx:if="{{item.role === 'user' && userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
+        <text wx:elif="{{item.role === 'user'}}">{{avatarText}}</text>
         <text wx:else>AI</text>
       </view>
-      <view class="content">
-        <view class="bubble">
-          <text>{{item.content}}</text>
-          <view class="images" wx:if="{{item.images && item.images.length > 0}}">
+      <view class="msg-content">
+        <view class="msg-bubble">
+          <text class="msg-text">{{item.content}}</text>
+          <view class="msg-images" wx:if="{{item.images && item.images.length > 0}}">
             <image
               wx:for="{{item.images}}"
               wx:for-item="img"
               wx:key="index"
               src="{{img.data.indexOf('data:') === 0 ? img.data : 'data:image/png;base64,' + img.data}}"
               mode="widthFix"
+              class="msg-img"
               bindtap="previewImage"
               data-src="{{img.data.indexOf('data:') === 0 ? img.data : 'data:image/png;base64,' + img.data}}"
             />
@@ -26,73 +71,86 @@
     </view>
 
     <!-- 加载中 -->
-    <view class="loading" wx:if="{{loading}}">
-      <view class="loading-dot"></view>
-      <view class="loading-dot"></view>
-      <view class="loading-dot"></view>
+    <view class="typing" wx:if="{{loading}}">
+      <view class="msg-avatar">
+        <text>AI</text>
+      </view>
+      <view class="typing-dots">
+        <view class="dot"></view>
+        <view class="dot"></view>
+        <view class="dot"></view>
+      </view>
     </view>
 
     <view id="bottom"></view>
   </scroll-view>
 
-  <!-- 快捷操作 -->
-  <view class="quick-actions">
-    <view class="quick-btn" bindtap="quickAction" data-action="你好">问候</view>
-    <view class="quick-btn" bindtap="quickAction" data-action="帮我写一首诗">写诗</view>
-    <view class="quick-btn" bindtap="quickAction" data-action="今天天气怎么样">闲聊</view>
-    <view class="quick-btn" bindtap="quickAction" data-action="会员状态">会员</view>
-  </view>
+  <!-- 底部输入区 -->
+  <view class="input-area">
+    <!-- 快捷操作 - 有消息时显示 -->
+    <scroll-view class="quick-scroll" scroll-x wx:if="{{messages.length > 0}}">
+      <view class="quick-list">
+        <view class="quick-item" bindtap="quickAction" data-action="今天运动打卡">打卡</view>
+        <view class="quick-item" bindtap="quickAction" data-action="查询今日步数">步数</view>
+        <view class="quick-item" bindtap="quickAction" data-action="推荐健身动作">健身</view>
+        <view class="quick-item" bindtap="quickAction" data-action="分享运动技巧">技巧</view>
+        <view class="quick-item" bindtap="quickAction" data-action="制定运动计划">计划</view>
+      </view>
+    </scroll-view>
 
-  <!-- 输入框 -->
-  <view class="input-bar">
-    <input
-      class="input"
-      type="text"
-      value="{{inputText}}"
-      placeholder="输入消息..."
-      bindinput="onInput"
-      confirm-type="send"
-      bindconfirm="sendMessage"
-    />
-    <button class="send-btn" bindtap="sendMessage" disabled="{{loading || !inputText}}">发送</button>
+    <!-- 输入框 -->
+    <view class="input-row">
+      <input
+        class="input"
+        type="text"
+        value="{{inputText}}"
+        placeholder="输入消息..."
+        bindinput="onInput"
+        confirm-type="send"
+        bindconfirm="sendMessage"
+        adjust-position="{{true}}"
+      />
+      <button class="send-btn" bindtap="sendMessage" disabled="{{loading || !inputText}}">
+        <text>发送</text>
+      </button>
+    </view>
   </view>
 
   <!-- 分享到微信运动弹窗 -->
-  <view class="share-modal" wx:if="{{showShareModal}}" bindtap="closeShareModal">
-    <view class="share-content" catchtap>
-      <view class="share-icon">🏃</view>
-      <view class="share-title">分享到微信运动</view>
+  <view class="modal-mask" wx:if="{{showShareModal}}" bindtap="closeShareModal">
+    <view class="modal-box" catchtap>
+      <view class="modal-icon">🏃</view>
+      <view class="modal-title">分享到微信运动</view>
 
-      <!-- 运动类型选择 -->
-      <view class="share-form">
-        <view class="form-item">
+      <view class="modal-form">
+        <view class="form-row">
           <text class="form-label">运动类型</text>
           <picker mode="selector" range="{{sportTypes}}" range-key="name" value="{{selectedSportIndex}}" bindchange="onSportTypeChange">
-            <view class="picker-value">
-              {{sportTypes[selectedSportIndex].name}}
-              <text class="picker-arrow">▼</text>
+            <view class="form-picker">
+              <text>{{sportTypes[selectedSportIndex].name}}</text>
+              <text class="arrow">▼</text>
             </view>
           </picker>
         </view>
 
-        <view class="form-item">
+        <view class="form-row">
           <text class="form-label">运动数值</text>
-          <view class="value-input-wrap">
+          <view class="form-input-wrap">
             <input
-              class="value-input"
+              class="form-input"
               type="number"
               value="{{inputValue}}"
               bindinput="onValueInput"
-              placeholder="请输入数值"
+              placeholder="请输入"
             />
-            <text class="value-unit">{{sportTypes[selectedSportIndex].unit}}</text>
+            <text class="form-unit">{{sportTypes[selectedSportIndex].unit}}</text>
           </view>
         </view>
       </view>
 
-      <view class="share-btns">
-        <button class="share-btn cancel" bindtap="closeShareModal">取消</button>
-        <button class="share-btn confirm" bindtap="shareToWeRun">分享</button>
+      <view class="modal-btns">
+        <button class="modal-btn cancel" bindtap="closeShareModal">取消</button>
+        <button class="modal-btn confirm" bindtap="shareToWeRun">分享</button>
       </view>
     </view>
   </view>

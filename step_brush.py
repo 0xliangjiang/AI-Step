@@ -120,14 +120,57 @@ class ZeppAPI:
             resp = requests.get(PROXY_API_URL, timeout=10)
             proxy_text = resp.text.strip()
 
-            # 解析格式: host:port:username:password
+            # 先尝试解析 JSON 响应（如 nstproxy）
+            try:
+                proxy_json = resp.json()
+            except Exception:
+                proxy_json = None
+
+            if isinstance(proxy_json, dict):
+                # 权限 / token / 通道错误
+                if proxy_json.get("err") is True:
+                    self.log(f"获取代理失败，接口返回错误: {proxy_json}")
+                    self.use_proxy = False
+                    return
+
+                data = proxy_json.get("data")
+                if isinstance(data, list) and data:
+                    first = data[0]
+                    proxy_value = (
+                        first.get("proxy")
+                        or first.get("ipPort")
+                        or first.get("ip:port")
+                        or first.get("ip_port")
+                    )
+                    username = first.get("username") or first.get("user")
+                    password = first.get("password") or first.get("pass")
+
+                    if proxy_value and ':' in proxy_value:
+                        host, port = proxy_value.rsplit(':', 1)
+                        if username and password:
+                            self.proxy_url = f"http://{username}:{password}@{host}:{port}"
+                        else:
+                            self.proxy_url = f"http://{host}:{port}"
+                        self.log(f"获取代理成功: {host}:{port}")
+                        return
+
+                self.log(f"获取代理失败，JSON格式无法识别: {proxy_json}")
+                self.use_proxy = False
+                return
+
+            # 兼容纯文本格式: host:port 或 host:port:username:password
             parts = proxy_text.split(':')
             if len(parts) >= 4:
                 host = parts[0]
                 port = parts[1]
                 username = parts[2]
-                password = parts[3]
+                password = ':'.join(parts[3:])
                 self.proxy_url = f"http://{username}:{password}@{host}:{port}"
+                self.log(f"获取代理成功: {host}:{port}")
+            elif len(parts) == 2:
+                host = parts[0]
+                port = parts[1]
+                self.proxy_url = f"http://{host}:{port}"
                 self.log(f"获取代理成功: {host}:{port}")
             else:
                 self.log(f"获取代理失败，格式错误: {proxy_text}")
@@ -168,6 +211,7 @@ class ZeppAPI:
         支持 tls-client 和普通 requests 两种模式。
         """
         last_resp = None
+        last_error = None
         for attempt in range(max_retries):
             try:
                 if self.use_tls:
@@ -182,10 +226,15 @@ class ZeppAPI:
                         }
                     resp = requests.request(method, url, **kwargs)
             except Exception as e:
+                last_error = e
                 # 代理链路常见错误：握手失败/EOF/连接中断，自动切换代理重试
                 if use_proxy and self.use_proxy:
-                    self.log(f"请求异常，尝试切换代理后重试({attempt + 1}/{max_retries}): {e}")
+                    self.log(
+                        f"请求异常，当前代理: {self.proxy_url or '无'}，"
+                        f"尝试切换代理后重试({attempt + 1}/{max_retries}): {e}"
+                    )
                     self._fetch_proxy()
+                    self.log(f"切换后的代理: {self.proxy_url or '无'}")
                     time.sleep(min(2.0, 0.3 * (attempt + 1)))
                     continue
                 raise
@@ -200,6 +249,8 @@ class ZeppAPI:
                 self._fetch_proxy()
             time.sleep(sleep_s)
 
+        if last_resp is None and last_error is not None:
+            raise RuntimeError(f"请求重试失败，未获得响应: {last_error}")
         return last_resp
 
     def _tls_request(self, method: str, url: str, use_proxy=True, **kwargs):
@@ -455,6 +506,8 @@ class ZeppAPI:
             self.log(f"获取验证码: {url}")
 
             response = self._request_with_retry("GET", url, timeout=10, use_proxy=True)
+            if response is None:
+                return {'success': False, 'message': '获取验证码失败: 未获得响应'}
             self.log(f"响应状态码: {response.status_code}")
             self.log(f"响应头: {dict(response.headers)}")
 

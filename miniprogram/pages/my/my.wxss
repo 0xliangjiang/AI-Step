@@ -27,6 +27,13 @@
   box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.15);
 }
 
+.avatar-image {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.15);
+}
+
 .info .nickname {
   color: #fff;
   font-size: 36rpx;
@@ -74,6 +81,29 @@
   background: #fff;
   border-radius: 20rpx;
   overflow: hidden;
+}
+
+.auth-btn {
+  border-radius: 999rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.auth-btn.primary {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+}
+
+.auth-btn.danger {
+  background: #fff;
+  color: #d14343;
+  border: 2rpx solid #f3c5c5;
 }
 
 /* 开通会员按钮 */

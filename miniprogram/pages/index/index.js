@@ -1,9 +1,16 @@
 // pages/index/index.js
 const api = require('../../utils/api')
 
+function parseDateTime(value) {
+  if (!value) return null
+  return new Date(value.replace(/-/g, '/'))
+}
+
 Page({
   data: {
     userInfo: null,
+    userProfile: null,
+    avatarText: '微',
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
@@ -16,13 +23,28 @@ Page({
   },
 
   onLoad() {
+    this.syncUserProfile()
     this.loadUserInfo()
     this.loadAdConfig()
   },
 
   onShow() {
+    this.syncUserProfile()
     this.loadUserInfo()
     this.loadAdStatus()
+  },
+
+  syncUserProfile() {
+    const app = getApp()
+    const userProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const avatarText = userProfile && userProfile.nickName
+      ? userProfile.nickName.charAt(0)
+      : '微'
+
+    this.setData({
+      userProfile,
+      avatarText
+    })
   },
 
   // 加载用户信息
@@ -32,12 +54,17 @@ Page({
       if (res.success) {
         const data = res.data
         const now = new Date()
-        const expireAt = data.vip_expire_at ? new Date(data.vip_expire_at) : null
+        const expireAt = parseDateTime(data.vip_expire_at)
         const isVip = expireAt && expireAt > now
         const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
 
         this.setData({
           userInfo: data,
+          userProfile: {
+            nickName: data.nickname || (this.data.userProfile && this.data.userProfile.nickName) || '微信用户',
+            avatarUrl: data.avatar_url || (this.data.userProfile && this.data.userProfile.avatarUrl) || ''
+          },
+          avatarText: data.nickname ? data.nickname.charAt(0) : this.data.avatarText,
           vipExpireAt: data.vip_expire_at,
           isVip,
           remainingDays,
@@ -90,8 +117,18 @@ Page({
   watchAd() {
     // 创建激励视频广告
     if (!this.rewardedVideoAd) {
+      const app = getApp()
+      const adUnitId = app.globalData.adConfig.rewardedVideoAdUnitId
+      if (!adUnitId || adUnitId === 'adunit-xxxxxxxxxxxxxxxx') {
+        wx.showToast({
+          title: '广告位未配置',
+          icon: 'none'
+        })
+        return
+      }
+
       this.rewardedVideoAd = wx.createRewardedVideoAd({
-        adUnitId: 'adunit-xxxxxxxxxxxxxxxx' // 需要替换为真实的广告位ID
+        adUnitId
       })
 
       this.rewardedVideoAd.onClose((res) => {

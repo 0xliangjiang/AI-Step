@@ -21,6 +21,8 @@ Page({
     inputText: '',
     loading: false,
     scrollToView: '',
+    userProfile: null,
+    avatarText: '微',
     // 分享相关
     showShareModal: false,
     shareSteps: 0,
@@ -30,12 +32,30 @@ Page({
   },
 
   onLoad() {
+    this.syncUserProfile()
     // 添加欢迎消息
     this.setData({
       messages: [{
         role: 'assistant',
         content: '您好！我是智问AI助手，很高兴为您服务。\n\n我可以帮您：\n• 回答各类问题\n• 提供专业建议\n• 进行日常对话\n• 处理生活事务\n\n请问有什么可以帮您的？'
       }]
+    })
+  },
+
+  onShow() {
+    this.syncUserProfile()
+  },
+
+  syncUserProfile() {
+    const app = getApp()
+    const userProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const avatarText = userProfile && userProfile.nickName
+      ? userProfile.nickName.charAt(0)
+      : '微'
+
+    this.setData({
+      userProfile,
+      avatarText
     })
   },
 
@@ -64,14 +84,23 @@ Page({
     try {
       const res = await api.chat(text)
 
-      // 调试：打印返回的图片数据
       console.log('API响应:', res)
-      console.log('图片数据:', res.images)
+      if (res.function_result) {
+        console.log('function_result:', res.function_result)
+      }
+
+      const fallbackErrorMessage =
+        (res.function_result && (res.function_result.message || res.function_result.debug_message)) ||
+        ''
+      const displayReply =
+        (!res.success && res.reply === '系统异常，请联系QQ:188177020处理' && fallbackErrorMessage)
+          ? `系统异常\n${fallbackErrorMessage}`
+          : (res.reply || '抱歉，出现了一些问题，请稍后再试。')
 
       // 添加助手回复
       const newMessages = [...this.data.messages, {
         role: 'assistant',
-        content: res.reply || '抱歉，出现了一些问题，请稍后再试。',
+        content: displayReply,
         images: res.images || []
       }]
 
@@ -82,8 +111,8 @@ Page({
 
       this.scrollToBottom()
 
-      // 检测刷步成功，弹出分享提示
-      this.checkBrushSuccess(res.reply)
+      // 检测刷步成功，自动弹出分享弹窗
+      this.checkBrushSuccess(res.reply, res.function_result)
 
     } catch (e) {
       console.error('发送消息失败', e)
@@ -98,18 +127,26 @@ Page({
   },
 
   // 检测刷步成功
-  checkBrushSuccess(reply) {
-    if (!reply) return
+  checkBrushSuccess(reply, functionResult) {
+    // 从 function_result 获取步数
+    let steps = 0
 
-    // 匹配刷步成功的消息，提取步数
-    const match = reply.match(/刷步成功.*?(\d+)\s*步/)
-    if (match) {
-      const steps = parseInt(match[1])
+    if (functionResult && functionResult.steps) {
+      steps = functionResult.steps
+    } else if (reply) {
+      // 兼容从消息中提取
+      const match = reply.match(/(\d+)\s*步/)
+      if (match && reply.includes('完成')) {
+        steps = parseInt(match[1])
+      }
+    }
+
+    if (steps > 0) {
       this.setData({
         showShareModal: true,
         shareSteps: steps,
         inputValue: String(steps),
-        selectedSportIndex: 0  // 默认选择步数
+        selectedSportIndex: 0
       })
     }
   },

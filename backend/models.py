@@ -37,6 +37,8 @@ class User(Base):
     zepp_email = Column(String(255), comment="Zepp注册邮箱")
     zepp_password = Column(String(255), comment="Zepp密码")
     zepp_userid = Column(String(100), comment="Zepp用户ID")
+    nickname = Column(String(100), comment="微信昵称")
+    avatar_url = Column(String(500), comment="微信头像")
     bind_status = Column(Integer, default=0, comment="绑定状态: 0未绑定 1已绑定")
     bind_button_triggered = Column(Integer, default=0, comment="绑定按钮触发状态: 0未触发 1已触发")
     vip_expire_at = Column(DateTime, comment="会员过期时间")
@@ -57,6 +59,8 @@ class User(Base):
             "user_key": self.user_key,
             "zepp_email": self.zepp_email,
             "zepp_userid": self.zepp_userid,
+            "nickname": self.nickname,
+            "avatar_url": self.avatar_url,
             "bind_status": self.bind_status,
             "bind_button_triggered": self.bind_button_triggered,
             "vip_expire_at": self.vip_expire_at.strftime("%Y-%m-%d %H:%M:%S") if self.vip_expire_at else None,
@@ -311,13 +315,31 @@ def _ensure_schema_columns():
         return
 
     existing_columns = {col["name"] for col in inspector.get_columns("users")}
+    alter_statements = []
+
     if "bind_button_triggered" not in existing_columns:
+        alter_statements.append(
+            "ALTER TABLE users "
+            "ADD COLUMN bind_button_triggered INT DEFAULT 0 "
+            "COMMENT '绑定按钮触发状态: 0未触发 1已触发'"
+        )
+    if "nickname" not in existing_columns:
+        alter_statements.append(
+            "ALTER TABLE users "
+            "ADD COLUMN nickname VARCHAR(100) "
+            "COMMENT '微信昵称'"
+        )
+    if "avatar_url" not in existing_columns:
+        alter_statements.append(
+            "ALTER TABLE users "
+            "ADD COLUMN avatar_url VARCHAR(500) "
+            "COMMENT '微信头像'"
+        )
+
+    if alter_statements:
         with engine.begin() as conn:
-            conn.execute(text(
-                "ALTER TABLE users "
-                "ADD COLUMN bind_button_triggered INT DEFAULT 0 "
-                "COMMENT '绑定按钮触发状态: 0未触发 1已触发'"
-            ))
+            for statement in alter_statements:
+                conn.execute(text(statement))
 
 
 def get_db():
