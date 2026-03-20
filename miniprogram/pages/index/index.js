@@ -14,24 +14,24 @@ Page({
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
-    loading: true,
-    // 广告相关
-    adRewardDays: 1,
-    adDailyLimit: 3,
-    adDailyCount: 0,
-    adCanWatch: false
+    loading: true
+    // 广告相关 - 暂时隐藏
+    // adRewardDays: 1,
+    // adDailyLimit: 3,
+    // adDailyCount: 0,
+    // adCanWatch: false
   },
 
   onLoad() {
     this.syncUserProfile()
     this.loadUserInfo()
-    this.loadAdConfig()
+    // this.loadAdConfig()
   },
 
   onShow() {
     this.syncUserProfile()
     this.loadUserInfo()
-    this.loadAdStatus()
+    // this.loadAdStatus()
   },
 
   syncUserProfile() {
@@ -77,34 +77,35 @@ Page({
     }
   },
 
-  async loadAdConfig() {
-    try {
-      const res = await api.request('/user/ad-config', 'GET', {})
-      if (res.success) {
-        this.setData({
-          adRewardDays: res.reward_days || 1,
-          adDailyLimit: res.daily_limit || 3
-        })
-      }
-    } catch (e) {
-      console.error('获取广告配置失败', e)
-    }
-  },
+  // 广告相关方法 - 暂时隐藏
+  // async loadAdConfig() {
+  //   try {
+  //     const res = await api.request('/user/ad-config', 'GET', {})
+  //     if (res.success) {
+  //       this.setData({
+  //         adRewardDays: res.reward_days || 1,
+  //         adDailyLimit: res.daily_limit || 3
+  //       })
+  //     }
+  //   } catch (e) {
+  //     console.error('获取广告配置失败', e)
+  //   }
+  // },
 
-  async loadAdStatus() {
-    try {
-      const res = await api.request('/user/ad-status', 'GET', {})
-      if (res.success) {
-        const canWatch = res.daily_count < res.daily_limit
-        this.setData({
-          adDailyCount: res.daily_count || 0,
-          adCanWatch: canWatch
-        })
-      }
-    } catch (e) {
-      console.error('获取广告状态失败', e)
-    }
-  },
+  // async loadAdStatus() {
+  //   try {
+  //     const res = await api.request('/user/ad-status', 'GET', {})
+  //     if (res.success) {
+  //       const canWatch = res.daily_count < res.daily_limit
+  //       this.setData({
+  //         adDailyCount: res.daily_count || 0,
+  //         adCanWatch: canWatch
+  //       })
+  //     }
+  //   } catch (e) {
+  //     console.error('获取广告状态失败', e)
+  //   }
+  // },
 
   // 去聊天页
   goChat() {
@@ -113,88 +114,85 @@ Page({
     })
   },
 
-  // 观看广告
-  watchAd() {
-    // 创建激励视频广告
-    if (!this.rewardedVideoAd) {
-      const app = getApp()
-      const adUnitId = app.globalData.adConfig.rewardedVideoAdUnitId
-      if (!adUnitId || adUnitId === 'adunit-xxxxxxxxxxxxxxxx') {
-        wx.showToast({
-          title: '广告位未配置',
-          icon: 'none'
-        })
-        return
-      }
+  // 观看广告 - 暂时隐藏
+  // watchAd() {
+  //   // 创建激励视频广告
+  //   if (!this.rewardedVideoAd) {
+  //     const app = getApp()
+  //     const adUnitId = app.globalData.adConfig.rewardedVideoAdUnitId
+  //     if (!adUnitId || adUnitId === 'adunit-xxxxxxxxxxxxxxxx') {
+  //       wx.showToast({
+  //         title: '广告位未配置',
+  //         icon: 'none'
+  //       })
+  //       return
+  //     }
+  //
+  //     this.rewardedVideoAd = wx.createRewardedVideoAd({
+  //       adUnitId
+  //     })
+  //
+  //     this.rewardedVideoAd.onClose((res) => {
+  //       if (res && res.isEnded) {
+  //         // 正常播放结束，发放奖励
+  //         this.claimAdReward()
+  //       } else {
+  //         wx.showToast({
+  //           title: '观看完整才能获得奖励',
+  //           icon: 'none'
+  //         })
+  //       }
+  //     })
+  //
+  //     this.rewardedVideoAd.onError((err) => {
+  //       console.error('广告加载失败', err)
+  //       wx.showToast({
+  //         title: '广告加载失败，请稍后重试',
+  //         icon: 'none'
+  //       })
+  //     })
+  //   }
+  //
+  //   // 显示广告
+  //   this.rewardedVideoAd.show().catch(() => {
+  //     // 失败重试
+  //     this.rewardedVideoAd.load().then(() => this.rewardedVideoAd.show())
+  //   })
+  // },
 
-      this.rewardedVideoAd = wx.createRewardedVideoAd({
-        adUnitId
-      })
-
-      this.rewardedVideoAd.onClose((res) => {
-        if (res && res.isEnded) {
-          // 正常播放结束，发放奖励
-          this.claimAdReward()
-        } else {
-          wx.showToast({
-            title: '观看完整才能获得奖励',
-            icon: 'none'
-          })
-        }
-      })
-
-      this.rewardedVideoAd.onError((err) => {
-        console.error('广告加载失败', err)
-        wx.showToast({
-          title: '广告加载失败，请稍后重试',
-          icon: 'none'
-        })
-      })
-    }
-
-    // 显示广告
-    this.rewardedVideoAd.show().catch(() => {
-      // 失败重试
-      this.rewardedVideoAd.load().then(() => this.rewardedVideoAd.show())
-    })
-  },
-
-  // 领取广告奖励
-  async claimAdReward() {
-    try {
-      wx.showLoading({ title: '领取中...' })
-      const res = await api.request('/user/watch-ad', 'POST', {})
-      wx.hideLoading()
-
-      if (res.success) {
-        wx.showToast({
-          title: `+${res.reward_days}天会员`,
-          icon: 'success'
-        })
-        // 刷新用户信息和广告状态
-        this.loadUserInfo()
-        this.loadAdStatus()
-      } else {
-        wx.showToast({
-          title: res.message || '领取失败',
-          icon: 'none'
-        })
-      }
-    } catch (e) {
-      wx.hideLoading()
-      wx.showToast({
-        title: '网络错误',
-        icon: 'none'
-      })
-    }
-  },
+  // 领取广告奖励 - 暂时隐藏
+  // async claimAdReward() {
+  //   try {
+  //     wx.showLoading({ title: '领取中...' })
+  //     const res = await api.request('/user/watch-ad', 'POST', {})
+  //     wx.hideLoading()
+  //
+  //     if (res.success) {
+  //       wx.showToast({
+  //         title: `+${res.reward_days}天会员`,
+  //         icon: 'success'
+  //       })
+  //       // 刷新用户信息和广告状态
+  //       this.loadUserInfo()
+  //       this.loadAdStatus()
+  //     } else {
+  //       wx.showToast({
+  //         title: res.message || '领取失败',
+  //         icon: 'none'
+  //       })
+  //     }
+  //   } catch (e) {
+  //     wx.hideLoading()
+  //     wx.showToast({
+  //       title: '网络错误',
+  //       icon: 'none'
+  //     })
+  //   }
+  // },
 
   // 下拉刷新
   onPullDownRefresh() {
-    Promise.all([
-      this.loadUserInfo(),
-      this.loadAdStatus()
-    ]).then(() => {
+    this.loadUserInfo().then(() => {
       wx.stopPullDownRefresh()
     })
   }

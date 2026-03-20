@@ -1,9 +1,9 @@
 // app.js
 const API_BASE_URLS = {
   // 微信开发者工具 / 开发版
-  develop: 'http://localhost:8000',
+  develop: 'https://aistep.discordbot.cn',
   // 正式版
-  release: 'https://api.example.com'
+  release: 'https://aistep.discordbot.cn'
 }
 
 function resolveBaseUrl() {
