@@ -11,7 +11,7 @@ from typing import List, Dict, Optional
 from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, get_db_session
 from ai_client import ai_client
 from admin import router as admin_router, init_admin
-from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT
+from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID
 import time
 from collections import defaultdict
 import threading
@@ -518,8 +518,11 @@ async def create_payment_order(request: CreateOrderRequest):
 
 
 @app.get("/api/pay/query/{order_no}")
-async def query_payment_order(order_no: str):
-    """查询订单状态"""
+async def query_payment_order(order_no: str, user_key: str = ""):
+    """查询订单状态，不做最终入账"""
+    if not user_key:
+        return {"success": False, "message": "请先登录"}
+
     with get_db_session() as db:
         order = db.query(PaymentOrder).filter(
             PaymentOrder.order_no == order_no
@@ -528,28 +531,24 @@ async def query_payment_order(order_no: str):
         if not order:
             return {"success": False, "message": "订单不存在"}
 
-        # 如果订单待支付，主动查询微信
+        if order.user_key != user_key:
+            return {"success": False, "message": "无权查看该订单"}
+
+        remote_status = None
+        remote_trade_state_desc = ""
+
+        # 如果订单待支付，主动查询微信，但不在这里做最终入账
         if order.status == "pending":
             result = wechat_pay.query_order(order_no)
-            if result.get("success") and result.get("trade_state") == "SUCCESS":
-                # 更新订单状态
-                order.status = "paid"
-                order.transaction_id = result.get("transaction_id")
-                order.paid_at = datetime.now()
-
-                # 增加用户会员时间
-                user = db.query(User).filter(User.user_key == order.user_key).first()
-                if user:
-                    if user.vip_expire_at and user.vip_expire_at > datetime.now():
-                        user.vip_expire_at = user.vip_expire_at + timedelta(days=order.days)
-                    else:
-                        user.vip_expire_at = datetime.now() + timedelta(days=order.days)
-
-                    print(f"[Payment] 支付成功: {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
+            if result.get("success"):
+                remote_status = result.get("trade_state")
+                remote_trade_state_desc = result.get("trade_state_desc") or ""
 
         return {
             "success": True,
             "status": order.status,
+            "remote_status": remote_status,
+            "remote_trade_state_desc": remote_trade_state_desc,
             "order": order.to_dict()
         }
 
@@ -577,6 +576,9 @@ async def payment_notify(request: Request):
 
     order_no = data.get("out_trade_no")
     transaction_id = data.get("transaction_id")
+    callback_appid = data.get("appid")
+    callback_mch_id = data.get("mch_id")
+    callback_total_fee = data.get("total_fee")
 
     with get_db_session() as db:
         order = db.query(PaymentOrder).filter(PaymentOrder.order_no == order_no).first()
@@ -589,10 +591,38 @@ async def payment_notify(request: Request):
         if order.status == "paid":
             return Response(content=wechat_pay.success_response(), media_type="application/xml")
 
-        # 更新订单状态
+        # 回调关键字段校验，避免错单或串单到账
+        if callback_appid != WX_APPID:
+            print(f"[Payment] 回调appid不匹配: {order_no}, callback={callback_appid}, local={WX_APPID}")
+            return Response(content=wechat_pay.fail_response("appid不匹配"), media_type="application/xml")
+
+        if callback_mch_id != WX_MCH_ID:
+            print(f"[Payment] 回调mch_id不匹配: {order_no}, callback={callback_mch_id}, local={WX_MCH_ID}")
+            return Response(content=wechat_pay.fail_response("mch_id不匹配"), media_type="application/xml")
+
+        if str(order.amount) != str(callback_total_fee):
+            print(
+                f"[Payment] 回调金额不匹配: {order_no}, callback={callback_total_fee}, local={order.amount}"
+            )
+            return Response(content=wechat_pay.fail_response("金额不匹配"), media_type="application/xml")
+
+        # 原子更新订单状态，确保并发场景下只有一个请求能完成最终入账
+        paid_at = datetime.now()
+        updated_rows = db.query(PaymentOrder).filter(
+            PaymentOrder.id == order.id,
+            PaymentOrder.status == "pending"
+        ).update({
+            PaymentOrder.status: "paid",
+            PaymentOrder.transaction_id: transaction_id,
+            PaymentOrder.paid_at: paid_at,
+        }, synchronize_session=False)
+
+        if updated_rows == 0:
+            return Response(content=wechat_pay.success_response(), media_type="application/xml")
+
         order.status = "paid"
         order.transaction_id = transaction_id
-        order.paid_at = datetime.now()
+        order.paid_at = paid_at
 
         # 增加用户会员时间
         user = db.query(User).filter(User.user_key == order.user_key).first()
