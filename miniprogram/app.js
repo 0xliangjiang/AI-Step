@@ -30,14 +30,40 @@ App({
     userInfo: null,
     userProfile: null,
     openid: null,
-    vipExpireAt: null
+    vipExpireAt: null,
+    publicConfig: {
+      reviewMode: false
+    }
   },
 
-  onLaunch() {
+  async onLaunch() {
     console.log('[App] 当前API地址:', this.globalData.baseUrl)
     this.globalData.userProfile = wx.getStorageSync('userProfile') || null
+    await this.loadPublicConfig()
     // 检查登录状态
     this.checkLogin()
+  },
+
+  loadPublicConfig() {
+    return new Promise((resolve) => {
+      wx.request({
+        url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/public/config`,
+        method: 'GET',
+        success: (res) => {
+          const reviewMode = !!(res.data && res.data.success && res.data.data && res.data.data.review_mode)
+          this.globalData.publicConfig = { reviewMode }
+          resolve(this.globalData.publicConfig)
+        },
+        fail: () => {
+          this.globalData.publicConfig = { reviewMode: false }
+          resolve(this.globalData.publicConfig)
+        }
+      })
+    })
+  },
+
+  isReviewMode() {
+    return !!(this.globalData.publicConfig && this.globalData.publicConfig.reviewMode)
   },
 
   // 检查登录状态

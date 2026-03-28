@@ -16,7 +16,8 @@ Page({
     remainingDays: 0,
     isVip: false,
     isLoggedIn: false,
-    loading: true
+    loading: true,
+    reviewMode: false
     // 广告相关 - 暂时隐藏
     // adRewardDays: 1,
     // adDailyLimit: 3,
@@ -25,15 +26,24 @@ Page({
   },
 
   onLoad() {
+    this.syncReviewMode()
     this.syncLoginState()
     this.loadUserInfo()
     // this.loadAdConfig()
   },
 
   onShow() {
+    this.syncReviewMode()
     this.syncLoginState()
     this.loadUserInfo()
     // this.loadAdStatus()
+  },
+
+  syncReviewMode() {
+    const app = getApp()
+    this.setData({
+      reviewMode: app.isReviewMode()
+    })
   },
 
   syncLoginState() {
@@ -272,13 +282,21 @@ Page({
   aboutUs() {
     wx.showModal({
       title: '关于我们',
-      content: '运动AI助手 - 您的运动数据伙伴\n\n版本：1.0.0',
+      content: '运动记录 - 您的运动数据伙伴\n\n版本：1.0.0',
       showCancel: false
     })
   },
 
   // 去开通会员
   goVip() {
+    if (this.data.reviewMode) {
+      wx.showToast({
+        title: '当前版本暂未开放',
+        icon: 'none'
+      })
+      return
+    }
+
     if (!api.isLoggedIn()) {
       wx.showToast({
         title: '请先登录',

@@ -32,12 +32,26 @@ Page({
   },
 
   onLoad() {
+    const app = getApp()
+    if (app.isReviewMode()) {
+      wx.showToast({
+        title: '当前版本暂未开放',
+        icon: 'none'
+      })
+      setTimeout(() => {
+        wx.switchTab({
+          url: '/pages/index/index'
+        })
+      }, 800)
+      return
+    }
+
     this.syncUserProfile()
     // 添加欢迎消息
     this.setData({
       messages: [{
         role: 'assistant',
-        content: '您好！我是智问AI助手，很高兴为您服务。\n\n我可以帮您：\n• 回答各类问题\n• 提供专业建议\n• 进行日常对话\n• 处理生活事务\n\n请问有什么可以帮您的？'
+        content: '您好，欢迎使用运动记录。\n\n您可以在这里：\n• 记录运动数据\n• 查询今日步数\n• 查看运动建议\n• 制定运动计划\n\n请输入您的需求。'
       }]
     })
   },

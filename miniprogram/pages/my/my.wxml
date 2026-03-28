@@ -25,7 +25,7 @@
   </view>
 
   <!-- 会员信息 -->
-  <view class="section" wx:if="{{isLoggedIn}}">
+  <view class="section" wx:if="{{isLoggedIn && !reviewMode}}">
     <view class="section-title">会员信息</view>
     <view class="card">
       <view class="item">

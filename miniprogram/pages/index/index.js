@@ -14,7 +14,8 @@ Page({
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
-    loading: true
+    loading: true,
+    reviewMode: false
     // 广告相关 - 暂时隐藏
     // adRewardDays: 1,
     // adDailyLimit: 3,
@@ -23,15 +24,24 @@ Page({
   },
 
   onLoad() {
+    this.syncReviewMode()
     this.syncUserProfile()
     this.loadUserInfo()
     // this.loadAdConfig()
   },
 
   onShow() {
+    this.syncReviewMode()
     this.syncUserProfile()
     this.loadUserInfo()
     // this.loadAdStatus()
+  },
+
+  syncReviewMode() {
+    const app = getApp()
+    this.setData({
+      reviewMode: app.isReviewMode()
+    })
   },
 
   syncUserProfile() {
@@ -109,6 +119,14 @@ Page({
 
   // 去聊天页
   goChat() {
+    if (this.data.reviewMode) {
+      wx.showToast({
+        title: '当前版本暂未开放',
+        icon: 'none'
+      })
+      return
+    }
+
     wx.switchTab({
       url: '/pages/chat/chat'
     })

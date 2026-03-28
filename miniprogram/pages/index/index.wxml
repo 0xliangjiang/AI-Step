@@ -8,7 +8,7 @@
       <view class="profile-avatar profile-avatar-fallback" wx:else>{{avatarText}}</view>
       <view class="user-info">
         <view class="welcome">你好，{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
-        <view class="subtitle">欢迎使用 运动AI助手</view>
+        <view class="subtitle">欢迎使用运动记录</view>
         <view class="vip-info" wx:if="{{isVip}}">
           <text>会员有效期：{{vipExpireAt}}</text>
           <text class="remaining">剩余 {{remainingDays}} 天</text>
@@ -61,7 +61,7 @@
   </view>
 
   <!-- 开始按钮 -->
-  <view class="action-card">
+  <view class="action-card" wx:if="{{!reviewMode}}">
     <button class="start-btn" bindtap="goChat">开始记录</button>
   </view>
 </view>

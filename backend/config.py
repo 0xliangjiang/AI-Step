@@ -57,6 +57,7 @@ WX_KEY_PATH = os.getenv("WX_KEY_PATH", "")
 # 验证码 OCR 重试次数
 CAPTCHA_RETRY_TIMES = 5
 APP_DEBUG = os.getenv("APP_DEBUG", "true").lower() in ("1", "true", "yes", "on")
+REVIEW_MODE = os.getenv("REVIEW_MODE", "false").lower() in ("1", "true", "yes", "on")
 
 # 网络超时配置（秒）
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 30))  # 请求超时

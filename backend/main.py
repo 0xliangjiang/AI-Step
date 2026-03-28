@@ -11,7 +11,7 @@ from typing import List, Dict, Optional
 from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, get_db_session
 from ai_client import ai_client
 from admin import router as admin_router, init_admin
-from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID
+from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID, REVIEW_MODE
 import time
 from collections import defaultdict
 import threading
@@ -103,6 +103,11 @@ class UserInfoResponse(BaseModel):
     message: str = ""
 
 
+class PublicConfigResponse(BaseModel):
+    success: bool
+    data: dict
+
+
 @app.on_event("startup")
 async def startup():
     """启动时初始化数据库和管理员"""
@@ -161,6 +166,17 @@ async def user_login(request: LoginRequest):
                 user.user_key = user_key
 
     return {"success": True, "user_key": user_key}
+
+
+@app.get("/api/public/config", response_model=PublicConfigResponse)
+async def get_public_config():
+    """获取小程序公共配置"""
+    return PublicConfigResponse(
+        success=True,
+        data={
+            "review_mode": REVIEW_MODE
+        }
+    )
 
 
 class WxLoginRequest(BaseModel):
@@ -255,6 +271,9 @@ async def get_user_info(user_key: str = ""):
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """聊天接口"""
+    if REVIEW_MODE:
+        return ChatResponse(success=False, reply="当前版本暂未开放此功能")
+
     user_key = request.user_key.strip()
     message = request.message.strip()
 
@@ -441,6 +460,12 @@ class OrderResponse(BaseModel):
 @app.get("/api/packages", response_model=PackageResponse)
 async def get_packages():
     """获取VIP套餐列表"""
+    if REVIEW_MODE:
+        return PackageResponse(
+            success=False,
+            message="当前版本暂未开放购买功能"
+        )
+
     with get_db_session() as db:
         packages = db.query(VipPackage).filter(
             VipPackage.status == 1
@@ -455,6 +480,9 @@ async def get_packages():
 @app.post("/api/pay/create", response_model=OrderResponse)
 async def create_payment_order(request: CreateOrderRequest):
     """创建支付订单"""
+    if REVIEW_MODE:
+        return OrderResponse(success=False, message="当前版本暂未开放购买功能")
+
     if not request.user_key:
         return OrderResponse(success=False, message="请先登录")
 
@@ -520,6 +548,9 @@ async def create_payment_order(request: CreateOrderRequest):
 @app.get("/api/pay/query/{order_no}")
 async def query_payment_order(order_no: str, user_key: str = ""):
     """查询订单状态，不做最终入账"""
+    if REVIEW_MODE:
+        return {"success": False, "message": "当前版本暂未开放购买功能"}
+
     if not user_key:
         return {"success": False, "message": "请先登录"}
 

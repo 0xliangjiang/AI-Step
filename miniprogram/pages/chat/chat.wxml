@@ -5,7 +5,7 @@
     <view class="chat-header-avatar chat-header-avatar-fallback" wx:else>{{avatarText}}</view>
     <view class="chat-header-info">
       <view class="chat-header-name">{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
-      <view class="chat-header-desc">运动AI助手在线</view>
+      <view class="chat-header-desc">运动记录服务在线</view>
     </view>
   </view>
   <!-- 消息区域 -->
@@ -18,11 +18,11 @@
     <!-- 欢迎信息 -->
     <view class="welcome" wx:if="{{messages.length === 0}}">
       <view class="welcome-icon">
-        <text class="welcome-logo">AI</text>
+        <text class="welcome-logo">记</text>
       </view>
-      <view class="welcome-title">运动AI助手</view>
-      <view class="welcome-desc">你好，我是你的运动助手</view>
-      <view class="welcome-desc">有什么可以帮助你的吗？</view>
+      <view class="welcome-title">运动记录</view>
+      <view class="welcome-desc">你好，欢迎使用运动记录</view>
+      <view class="welcome-desc">可以记录和查看今天的运动信息</view>
 
       <view class="suggest-list">
         <view class="suggest-item" bindtap="quickAction" data-action="帮我记录今天的运动数据">
@@ -49,7 +49,7 @@
       <view class="msg-avatar">
         <image wx:if="{{item.role === 'user' && userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
         <text wx:elif="{{item.role === 'user'}}">{{avatarText}}</text>
-        <text wx:else>AI</text>
+        <text wx:else>记</text>
       </view>
       <view class="msg-content">
         <view class="msg-bubble">
@@ -73,7 +73,7 @@
     <!-- 加载中 -->
     <view class="typing" wx:if="{{loading}}">
       <view class="msg-avatar">
-        <text>AI</text>
+        <text>记</text>
       </view>
       <view class="typing-dots">
         <view class="dot"></view>
