@@ -78,58 +78,45 @@ App({
   // 微信登录并获取用户资料
   loginWithWechat() {
     return new Promise((resolve, reject) => {
-      wx.getUserProfile({
-        desc: '用于展示微信头像和昵称',
-        success: (profileRes) => {
-          wx.login({
-            success: (loginRes) => {
-              if (!loginRes.code) {
-                reject(new Error('获取微信登录凭证失败'))
+      wx.login({
+        success: (loginRes) => {
+          if (!loginRes.code) {
+            reject(new Error('获取微信登录凭证失败'))
+            return
+          }
+
+          wx.request({
+            url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/wxlogin`,
+            method: 'POST',
+            data: {
+              code: loginRes.code
+            },
+            success: (res) => {
+              if (!res.data.success || !res.data.openid) {
+                reject(new Error(res.data.message || '登录失败'))
                 return
               }
 
-              wx.request({
-                url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/wxlogin`,
-                method: 'POST',
-                data: {
-                  code: loginRes.code,
-                  nickname: profileRes.userInfo.nickName || '',
-                  avatar_url: profileRes.userInfo.avatarUrl || ''
-                },
-                success: (res) => {
-                  if (!res.data.success || !res.data.openid) {
-                    reject(new Error(res.data.message || '登录失败'))
-                    return
-                  }
+              const cachedProfile = wx.getStorageSync('userProfile') || null
 
-                  const userProfile = {
-                    nickName: profileRes.userInfo.nickName || '微信用户',
-                    avatarUrl: profileRes.userInfo.avatarUrl || '',
-                    gender: profileRes.userInfo.gender || 0
-                  }
-
-                  this.globalData.openid = res.data.openid
-                  this.globalData.userProfile = userProfile
-                  this.globalData.userInfo = {
-                    ...(this.globalData.userInfo || {}),
-                    nickname: userProfile.nickName,
-                    avatar_url: userProfile.avatarUrl
-                  }
-                  wx.setStorageSync('openid', res.data.openid)
-                  wx.setStorageSync('userProfile', userProfile)
-                  this.getUserInfo()
-                  resolve({
-                    openid: res.data.openid,
-                    userProfile
-                  })
-                },
-                fail: () => reject(new Error('登录请求失败'))
+              this.globalData.openid = res.data.openid
+              this.globalData.userProfile = cachedProfile
+              this.globalData.userInfo = {
+                ...(this.globalData.userInfo || {}),
+                nickname: cachedProfile ? cachedProfile.nickName : '',
+                avatar_url: cachedProfile ? cachedProfile.avatarUrl : ''
+              }
+              wx.setStorageSync('openid', res.data.openid)
+              this.getUserInfo()
+              resolve({
+                openid: res.data.openid,
+                userProfile: cachedProfile
               })
             },
-            fail: () => reject(new Error('微信登录失败'))
+            fail: () => reject(new Error('登录请求失败'))
           })
         },
-        fail: () => reject(new Error('用户取消授权'))
+        fail: () => reject(new Error('微信登录失败'))
       })
     })
   },

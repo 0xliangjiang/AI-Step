@@ -19,8 +19,33 @@
   <view class="section">
     <button class="auth-btn primary" wx:if="{{!isLoggedIn}}" bindtap="handleLogin">微信登录</button>
     <view wx:else class="auth-actions">
-      <button class="auth-btn primary" bindtap="handleLogin">同步微信头像昵称</button>
+      <button class="auth-btn primary" bindtap="handleLogin">重新登录</button>
       <button class="auth-btn danger" bindtap="handleLogout">退出登录</button>
+    </view>
+  </view>
+
+  <view class="section" wx:if="{{isLoggedIn}}">
+    <view class="section-title">个人资料</view>
+    <view class="card profile-card">
+      <view class="profile-edit-avatar">
+        <button class="avatar-picker" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+          <image class="avatar-image" wx:if="{{editAvatarUrl}}" src="{{editAvatarUrl}}" mode="aspectFill"></image>
+          <view class="avatar" wx:else>{{avatarText}}</view>
+        </button>
+        <text class="avatar-tip">点击设置头像</text>
+      </view>
+      <view class="profile-form">
+        <input
+          class="profile-input"
+          type="nickname"
+          placeholder="请输入昵称"
+          value="{{editNickname}}"
+          bindinput="onNicknameInput"
+        />
+        <button class="save-btn" bindtap="saveProfile" loading="{{savingProfile}}" disabled="{{savingProfile}}">
+          保存资料
+        </button>
+      </view>
     </view>
   </view>
 

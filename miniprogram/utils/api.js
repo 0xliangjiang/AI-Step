@@ -68,6 +68,10 @@ function getUserInfo() {
   return request('/user/info', 'GET', {})
 }
 
+function updateUserProfile(data) {
+  return request('/user/profile', 'POST', data)
+}
+
 /**
  * 发送聊天消息
  */
@@ -90,6 +94,7 @@ module.exports = {
   request,
   wxLogin,
   getUserInfo,
+  updateUserProfile,
   chat,
   checkVip,
   isLoggedIn

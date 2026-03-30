@@ -12,12 +12,15 @@ Page({
     userProfile: null,
     avatarText: '未',
     hasProfile: false,
+    editNickname: '',
+    editAvatarUrl: '',
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
     isLoggedIn: false,
     loading: true,
-    reviewMode: false
+    reviewMode: false,
+    savingProfile: false
     // 广告相关 - 暂时隐藏
     // adRewardDays: 1,
     // adDailyLimit: 3,
@@ -59,7 +62,9 @@ Page({
       userProfile,
       isLoggedIn,
       hasProfile,
-      avatarText
+      avatarText,
+      editNickname: (userProfile && userProfile.nickName) || '',
+      editAvatarUrl: (userProfile && userProfile.avatarUrl) || ''
     })
   },
 
@@ -97,7 +102,9 @@ Page({
           loading: false,
           isLoggedIn: true,
           hasProfile: !!(data.nickname || data.avatar_url || (this.data.userProfile && (this.data.userProfile.nickName || this.data.userProfile.avatarUrl))),
-          avatarText: data.nickname ? data.nickname.charAt(0) : this.data.avatarText
+          avatarText: data.nickname ? data.nickname.charAt(0) : this.data.avatarText,
+          editNickname: data.nickname || '',
+          editAvatarUrl: data.avatar_url || ''
         })
       }
     } catch (e) {
@@ -154,7 +161,7 @@ Page({
       this.syncLoginState()
       await this.loadUserInfo()
       wx.showToast({
-        title: this.data.isLoggedIn ? '资料已同步' : '登录成功',
+        title: '登录成功',
         icon: 'success'
       })
     } catch (e) {
@@ -163,6 +170,73 @@ Page({
         title: e.message || '登录失败',
         icon: 'none'
       })
+    }
+  },
+
+  onChooseAvatar(e) {
+    const avatarUrl = e.detail.avatarUrl || ''
+    this.setData({
+      editAvatarUrl: avatarUrl
+    })
+  },
+
+  onNicknameInput(e) {
+    this.setData({
+      editNickname: e.detail.value
+    })
+  },
+
+  async saveProfile() {
+    if (!api.isLoggedIn()) {
+      wx.showToast({
+        title: '请先登录',
+        icon: 'none'
+      })
+      return
+    }
+
+    const nickname = (this.data.editNickname || '').trim()
+    const avatarUrl = this.data.editAvatarUrl || ''
+
+    this.setData({ savingProfile: true })
+
+    try {
+      const res = await api.updateUserProfile({
+        nickname,
+        avatar_url: avatarUrl
+      })
+
+      if (!res.success) {
+        wx.showToast({
+          title: res.message || '保存失败',
+          icon: 'none'
+        })
+        return
+      }
+
+      const userProfile = {
+        nickName: nickname || '微信用户',
+        avatarUrl: avatarUrl || ''
+      }
+
+      const app = getApp()
+      app.globalData.userProfile = userProfile
+      wx.setStorageSync('userProfile', userProfile)
+
+      this.syncLoginState()
+      await this.loadUserInfo()
+
+      wx.showToast({
+        title: '保存成功',
+        icon: 'success'
+      })
+    } catch (e) {
+      wx.showToast({
+        title: '保存失败',
+        icon: 'none'
+      })
+    } finally {
+      this.setData({ savingProfile: false })
     }
   },
 

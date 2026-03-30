@@ -185,6 +185,12 @@ class WxLoginRequest(BaseModel):
     avatar_url: str = ""
 
 
+class UpdateProfileRequest(BaseModel):
+    user_key: str
+    nickname: str = ""
+    avatar_url: str = ""
+
+
 @app.post("/api/user/wxlogin")
 async def wx_login(request: WxLoginRequest):
     """微信小程序登录（使用openid作为用户标识）"""
@@ -244,6 +250,27 @@ async def wx_login(request: WxLoginRequest):
         "nickname": nickname,
         "avatar_url": avatar_url
     }
+
+
+@app.post("/api/user/profile", response_model=UserInfoResponse)
+async def update_user_profile(request: UpdateProfileRequest):
+    """更新用户头像昵称"""
+    user_key = request.user_key.strip()
+    nickname = request.nickname.strip()
+    avatar_url = request.avatar_url.strip()
+
+    if not user_key:
+        return UserInfoResponse(success=False, message="请先登录")
+
+    with get_db_session() as db:
+        user = db.query(User).filter(User.user_key == user_key).first()
+        if not user:
+            return UserInfoResponse(success=False, message="用户不存在")
+
+        user.nickname = nickname or None
+        user.avatar_url = avatar_url or None
+
+        return UserInfoResponse(success=True, data=user.to_dict(), message="保存成功")
 
 
 @app.get("/api/user/info", response_model=UserInfoResponse)
