@@ -11,8 +11,8 @@
         <view class="avatar-wrap">
           <image
             class="account-avatar"
-            wx:if="{{userProfile && userProfile.avatarUrl}}"
-            src="{{userProfile.avatarUrl}}"
+            wx:if="{{editAvatarUrl || (userProfile && userProfile.avatarUrl)}}"
+            src="{{editAvatarUrl || userProfile.avatarUrl}}"
             mode="aspectFill"
           ></image>
           <view class="account-avatar fallback" wx:else>{{avatarText}}</view>
