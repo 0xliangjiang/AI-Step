@@ -82,6 +82,28 @@ def _bind_device_with_retry(email: str, password: str, verbose: bool) -> dict:
     return bindband(email, password, step=1, verbose=verbose, use_proxy=False)
 
 
+def _login_with_proxy(email: str, password: str, verbose: bool) -> dict:
+    """Zepp 登录统一强制走代理，避免登录接口被限流。"""
+    api = ZeppAPI(
+        email,
+        password,
+        verbose=verbose,
+        use_tls=False,
+        use_proxy=True,
+    )
+    result = api.login()
+    if not result.get("success"):
+        return result
+    return {
+        "success": True,
+        "userid": result.get("userid"),
+        "login_token": api.login_token,
+        "app_token": api.app_token,
+        "api": api,
+        "message": result.get("message", "ok"),
+    }
+
+
 def generate_random_email():
     """生成随机邮箱"""
     chars = string.ascii_lowercase + string.digits
@@ -336,19 +358,11 @@ class StepSkills:
         """保存用户信息、绑定手环、获取微信绑定二维码"""
         try:
             # 登录时使用代理（避免限流）
-            api = ZeppAPI(
-                email,
-                password,
-                verbose=APP_DEBUG,
-                use_tls=False,
-                use_proxy=USE_PROXY
-            )
-
-            # 登录获取 userid
-            login_result = api.login()
+            login_result = _login_with_proxy(email, password, verbose=APP_DEBUG)
             if not login_result['success']:
                 return {'success': False, 'message': f"登录失败：{login_result['message']}"}
 
+            api = login_result['api']
             userid = login_result['userid']
 
             # 保存用户信息
@@ -443,10 +457,16 @@ class StepSkills:
                 api.app_token = user.get('app_token')
                 api.userid = user.get('zepp_userid')
             else:
-                # 需要登录
-                login_result = api.login()
+                login_result = _login_with_proxy(
+                    user.get('zepp_email'),
+                    user.get('zepp_password'),
+                    verbose=APP_DEBUG,
+                )
                 if not login_result['success']:
                     return {'success': False, 'message': f'登录失败：{login_result["message"]}'}
+                api.userid = login_result.get('userid')
+                api.login_token = login_result.get('login_token')
+                api.app_token = login_result.get('app_token')
                 # 登录成功后缓存token，减少后续重复登录
                 with get_db_session() as db:
                     db_user = db.query(User).filter(User.user_key == user_key).first()
@@ -632,22 +652,43 @@ class StepSkills:
                 if datetime.now() - token_updated_at < timedelta(hours=24):
                     api.login_token = login_token
                     api.app_token = app_token
+                    api.userid = user.get('zepp_userid')
                     need_login = False
                     self._log(f"使用缓存的token，更新时间: {token_updated_at}")
 
-            # 先尝试用缓存token刷步
-            result = api.update_step(steps)
-
-            # 如果失败且使用了缓存token，可能是token过期，重新登录
-            if not result['success'] and not need_login:
-                self._log("缓存token可能已过期，重新登录")
-                need_login = True
-                api.login_token = None
-                api.app_token = None
-
             # 需要重新登录
             if need_login:
+                login_result = _login_with_proxy(
+                    user.get('zepp_email'),
+                    user.get('zepp_password'),
+                    verbose=APP_DEBUG,
+                )
+                if not login_result['success']:
+                    result = {'success': False, 'message': login_result['message']}
+                else:
+                    api.userid = login_result.get('userid')
+                    api.login_token = login_result.get('login_token')
+                    api.app_token = login_result.get('app_token')
+                    result = api.update_step(steps)
+            else:
+                # 先尝试用缓存token刷步
                 result = api.update_step(steps)
+
+                # 如果失败且使用了缓存token，可能是token过期，重新登录
+                if not result['success']:
+                    self._log("缓存token可能已过期，重新登录")
+                    login_result = _login_with_proxy(
+                        user.get('zepp_email'),
+                        user.get('zepp_password'),
+                        verbose=APP_DEBUG,
+                    )
+                    if not login_result['success']:
+                        result = {'success': False, 'message': login_result['message']}
+                    else:
+                        api.userid = login_result.get('userid')
+                        api.login_token = login_result.get('login_token')
+                        api.app_token = login_result.get('app_token')
+                        result = api.update_step(steps)
 
             # 保存token到数据库
             if api.login_token and api.app_token:
