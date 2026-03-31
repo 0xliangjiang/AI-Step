@@ -180,6 +180,15 @@ Page({
     })
   },
 
+  onNicknameReview(e) {
+    const nickname = e.detail.nickname || ''
+    if (nickname) {
+      this.setData({
+        editNickname: nickname
+      })
+    }
+  },
+
   onNicknameInput(e) {
     this.setData({
       editNickname: e.detail.value

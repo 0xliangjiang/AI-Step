@@ -31,6 +31,7 @@
         placeholder-class="nickname-placeholder"
         value="{{editNickname}}"
         bindinput="onNicknameInput"
+        bindnicknamereview="onNicknameReview"
       />
       <text class="nickname-hint">点击上方头像或下方昵称可修改</text>
     </view>
