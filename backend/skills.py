@@ -10,6 +10,7 @@ import time
 import traceback
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from functools import wraps
 
 # 添加父目录到路径，以便导入 step_brush
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,6 +25,61 @@ from config import (
     CAPTCHA_RETRY_TIMES, MIN_STEPS, MAX_STEPS, ERROR_MESSAGE,
     APP_DEBUG, USE_PROXY, USE_PROXY_MODE, CAPTCHA_PENDING_EXPIRE
 )
+
+
+def retry_on_failure(max_retries: int = 3, delay: float = 1.0, backoff: float = 2.0):
+    """
+    重试装饰器，用于网络请求失败时自动重试
+
+    Args:
+        max_retries: 最大重试次数
+        delay: 初始延迟时间（秒）
+        backoff: 延迟时间倍数（每次重试后延迟增加）
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_error = None
+            current_delay = delay
+            for attempt in range(max_retries):
+                try:
+                    result = func(*args, **kwargs)
+                    # 如果成功，直接返回
+                    if result.get('success'):
+                        return result
+                    # 如果是业务逻辑失败（如参数错误），不重试
+                    error_msg = result.get('message', '')
+                    if any(keyword in error_msg for keyword in ['未配置', '不存在', '无效', '格式错误', '参数']):
+                        return result
+                    # 网络超时或临时失败，准备重试
+                    last_error = error_msg
+                    if attempt < max_retries - 1:
+                        print(f"[Retry] {func.__name__} 第 {attempt + 1} 次失败: {error_msg}，{current_delay}秒后重试")
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+                except Exception as e:
+                    last_error = str(e)
+                    if attempt < max_retries - 1:
+                        print(f"[Retry] {func.__name__} 第 {attempt + 1} 次异常: {e}，{current_delay}秒后重试")
+                        time.sleep(current_delay)
+                        current_delay *= backoff
+            # 所有重试都失败
+            return {'success': False, 'message': f'请求失败（已重试{max_retries}次）: {last_error}'}
+        return wrapper
+    return decorator
+
+
+# 带重试的 bindband 调用
+@retry_on_failure(max_retries=3, delay=1.0, backoff=2.0)
+def _bindband_with_retry(email: str, password: str, step: int, verbose: bool, use_proxy: bool) -> dict:
+    """带重试机制的绑定手环/刷步接口"""
+    return bindband(email, password, step=step, verbose=verbose, use_proxy=use_proxy)
+
+
+@retry_on_failure(max_retries=5, delay=1.0, backoff=1.5)
+def _bind_device_with_retry(email: str, password: str, verbose: bool) -> dict:
+    """绑定手环专用接口：固定直连且增加重试。"""
+    return bindband(email, password, step=1, verbose=verbose, use_proxy=False)
 
 
 def generate_random_email():
@@ -329,7 +385,7 @@ class StepSkills:
 
             # 1. 调用 bindband 绑定手环（通过第三方API，自动完成）
             self._log(f"调用 bindband 绑定手环: {email}")
-            bind_result = bindband(email, password, step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+            bind_result = _bind_device_with_retry(email, password, verbose=APP_DEBUG)
             self._log(f"bindband 结果: success={bind_result.get('success')}, message={bind_result.get('message')}")
 
             bind_msg = ""
@@ -403,7 +459,11 @@ class StepSkills:
 
             # 1. 自动触发绑定手环（仅首次）
             if auto_trigger and user_key and self._trigger_bind_button_once(user_key):
-                bind_result = bindband(user.get('zepp_email'), user.get('zepp_password'), step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+                bind_result = _bind_device_with_retry(
+                    user.get('zepp_email'),
+                    user.get('zepp_password'),
+                    verbose=APP_DEBUG,
+                )
                 self._log(f"自动绑定手环结果: {bind_result}")
                 if bind_result.get("success"):
                     bind_msg = "手环已绑定，"
@@ -463,7 +523,11 @@ class StepSkills:
 
         # 调用 bindband API 绑定手环
         self._log(f"手动触发绑定手环: {user.get('zepp_email')}")
-        bind_result = bindband(user.get('zepp_email'), user.get('zepp_password'), step=1, verbose=APP_DEBUG, use_proxy=USE_PROXY)
+        bind_result = _bind_device_with_retry(
+            user.get('zepp_email'),
+            user.get('zepp_password'),
+            verbose=APP_DEBUG,
+        )
         self._log(f"绑定手环结果: {bind_result}")
 
         if bind_result['success']:
@@ -504,7 +568,11 @@ class StepSkills:
                     db_user.bind_status = 1
 
             # 调用 bindband 初始化（步数=1）
-            bind_result = bindband(user.get('zepp_email'), user.get('zepp_password'), step=1, verbose=False, use_proxy=USE_PROXY)
+            bind_result = _bind_device_with_retry(
+                user.get('zepp_email'),
+                user.get('zepp_password'),
+                verbose=False,
+            )
 
             if bind_result['success']:
                 return {
@@ -592,7 +660,7 @@ class StepSkills:
                         self._log("Token已缓存")
         else:
             # 关闭代理模式后，刷步直接走第三方接口：apikey + 账号 + 密码 + 步数
-            result = bindband(
+            result = _bindband_with_retry(
                 user.get('zepp_email'),
                 user.get('zepp_password'),
                 step=steps,
