@@ -1,67 +1,117 @@
 <!--pages/index/index.wxml-->
-<view class="container">
-  <!-- 头部卡片 -->
-  <view class="header-card">
-    <view class="vip-badge" wx:if="{{isVip}}">会员</view>
-    <view class="profile-row">
-      <image class="profile-avatar" wx:if="{{userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
-      <view class="profile-avatar profile-avatar-fallback" wx:else>{{avatarText}}</view>
+<view class="page">
+  <!-- 渐变头部背景 -->
+  <view class="header-bg"></view>
+
+  <!-- 用户欢迎卡片 -->
+  <view class="welcome-card">
+    <view class="vip-badge" wx:if="{{isVip}}">
+      <text class="vip-icon">👑</text>
+      <text>会员</text>
+    </view>
+
+    <view class="user-section">
+      <view class="avatar-wrap">
+        <image
+          class="user-avatar"
+          wx:if="{{userProfile && userProfile.avatarUrl}}"
+          src="{{userProfile.avatarUrl}}"
+          mode="aspectFill"
+        ></image>
+        <view class="user-avatar fallback" wx:else>{{avatarText}}</view>
+        <view class="avatar-ring"></view>
+      </view>
+
       <view class="user-info">
-        <view class="welcome">你好，{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
-        <view class="subtitle">欢迎使用运动记录</view>
-        <view class="vip-info" wx:if="{{isVip}}">
-          <text>会员有效期：{{vipExpireAt}}</text>
-          <text class="remaining">剩余 {{remainingDays}} 天</text>
+        <view class="greeting">{{greeting}}</view>
+        <view class="username">{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
+      </view>
+    </view>
+
+    <view class="status-bar">
+      <view class="status-item">
+        <text class="status-icon">{{isVip ? '✨' : '⏱'}}</text>
+        <view class="status-text">
+          <text class="status-value">{{isVip ? '会员有效' : '体验中'}}</text>
+          <text class="status-label">当前状态</text>
         </view>
-        <view class="vip-info expired" wx:else>体验用户</view>
+      </view>
+      <view class="status-divider"></view>
+      <view class="status-item">
+        <text class="status-icon">📅</text>
+        <view class="status-text">
+          <text class="status-value">{{isVip ? remainingDays + '天' : '体验'}}</text>
+          <text class="status-label">剩余时间</text>
+        </view>
       </view>
     </view>
   </view>
 
-  <!-- 看广告领会员（会员过期时显示）- 暂时隐藏 -->
-  <!-- <view class="ad-card" wx:if="{{!isVip}}">
-    <view class="ad-left">
-      <view class="ad-icon">🎁</view>
-      <view class="ad-content">
-        <view class="ad-title">看广告领会员</view>
-        <view class="ad-desc">每次观看获得 {{adRewardDays}} 天会员 · 今日已看 {{adDailyCount}}/{{adDailyLimit}} 次</view>
-      </view>
+  <!-- 功能特点 -->
+  <view class="section">
+    <view class="section-header">
+      <view class="section-title">功能特点</view>
+      <view class="section-line"></view>
     </view>
-    <button class="ad-btn {{adCanWatch ? '' : 'disabled'}}" bindtap="watchAd" disabled="{{!adCanWatch}}">
-      {{adCanWatch ? '立即观看' : '已达上限'}}
-    </button>
-  </view> -->
 
-  <!-- 功能卡片 -->
-  <view class="feature-card">
-    <view class="card-title">功能特点</view>
-    <view class="feature-list">
-      <view class="feature-item">
-        <view class="icon">🏃</view>
-        <view class="text">
-          <view class="title">运动追踪</view>
-          <view class="desc">记录每日运动数据</view>
-        </view>
+    <view class="feature-grid">
+      <view class="feature-card">
+        <view class="feature-icon">🏃</view>
+        <view class="feature-title">运动追踪</view>
+        <view class="feature-desc">记录每日运动数据</view>
       </view>
-      <view class="feature-item">
-        <view class="icon">📊</view>
-        <view class="text">
-          <view class="title">数据分析</view>
-          <view class="desc">智能分析运动效果</view>
-        </view>
+
+      <view class="feature-card">
+        <view class="feature-icon">📊</view>
+        <view class="feature-title">数据分析</view>
+        <view class="feature-desc">智能分析运动效果</view>
       </view>
-      <view class="feature-item">
-        <view class="icon">🎯</view>
-        <view class="text">
-          <view class="title">目标设定</view>
-          <view class="desc">制定个性化运动计划</view>
-        </view>
+
+      <view class="feature-card">
+        <view class="feature-icon">🎯</view>
+        <view class="feature-title">目标设定</view>
+        <view class="feature-desc">制定个性化计划</view>
+      </view>
+
+      <view class="feature-card">
+        <view class="feature-icon">💬</view>
+        <view class="feature-title">智能助手</view>
+        <view class="feature-desc">AI运动建议指导</view>
       </view>
     </view>
   </view>
 
   <!-- 开始按钮 -->
-  <view class="action-card" wx:if="{{!reviewMode}}">
-    <button class="start-btn" bindtap="goChat">开始记录</button>
+  <view class="action-section" wx:if="{{!reviewMode}}">
+    <button class="start-btn" bindtap="goChat">
+      <text class="btn-icon">🚀</text>
+      <text>开始记录</text>
+    </button>
+    <view class="action-tip">点击开始您的运动记录之旅</view>
+  </view>
+</view>
+
+<!-- 登录弹窗 -->
+<view class="login-modal-mask" wx:if="{{showLoginModal}}" catchtouchmove="preventTouchMove">
+  <view class="login-modal">
+    <view class="login-modal-header">
+      <text class="login-modal-icon">👋</text>
+      <text class="login-modal-title">欢迎来到运动记录</text>
+      <text class="login-modal-desc">登录后可使用全部功能</text>
+    </view>
+
+    <view class="login-modal-body">
+      <view class="login-benefit" wx:for="{{loginBenefits}}" wx:key="icon">
+        <text class="login-benefit-icon">{{item.icon}}</text>
+        <text class="login-benefit-text">{{item.text}}</text>
+      </view>
+    </view>
+
+    <view class="login-modal-footer">
+      <button class="login-btn-primary" bindtap="handleLogin" loading="{{loginLoading}}">
+        <text wx:if="{{!loginLoading}}">微信一键登录</text>
+      </button>
+      <button class="login-btn-skip" bindtap="skipLogin">稍后再说</button>
+    </view>
   </view>
 </view>

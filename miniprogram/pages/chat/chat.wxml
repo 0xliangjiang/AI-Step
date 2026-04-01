@@ -1,13 +1,28 @@
 <!--pages/chat/chat.wxml-->
 <view class="page">
+  <!-- 顶部导航 -->
   <view class="chat-header">
-    <image class="chat-header-avatar" wx:if="{{userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
-    <view class="chat-header-avatar chat-header-avatar-fallback" wx:else>{{avatarText}}</view>
-    <view class="chat-header-info">
-      <view class="chat-header-name">{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
-      <view class="chat-header-desc">运动记录服务在线</view>
+    <view class="header-bg"></view>
+    <view class="header-content">
+      <view class="avatar-wrap">
+        <image
+          class="header-avatar"
+          wx:if="{{userProfile && userProfile.avatarUrl}}"
+          src="{{userProfile.avatarUrl}}"
+          mode="aspectFill"
+        ></image>
+        <view class="header-avatar fallback" wx:else>{{avatarText}}</view>
+      </view>
+      <view class="header-info">
+        <view class="header-name">{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
+        <view class="header-status">
+          <view class="status-dot"></view>
+          <text>在线服务中</text>
+        </view>
+      </view>
     </view>
   </view>
+
   <!-- 消息区域 -->
   <scroll-view
     class="message-area"
@@ -15,31 +30,40 @@
     scroll-into-view="{{scrollToView}}"
     scroll-with-animation
   >
-    <!-- 欢迎信息 -->
+    <!-- 欢迎页 -->
     <view class="welcome" wx:if="{{messages.length === 0}}">
-      <view class="welcome-icon">
-        <text class="welcome-logo">记</text>
+      <view class="welcome-hero">
+        <view class="welcome-icon">
+          <text class="welcome-logo">记</text>
+        </view>
+        <view class="welcome-title">运动记录助手</view>
+        <view class="welcome-desc">我可以帮你记录运动数据、查询步数、制定健身计划</view>
       </view>
-      <view class="welcome-title">运动记录</view>
-      <view class="welcome-desc">你好，欢迎使用运动记录</view>
-      <view class="welcome-desc">可以记录和查看今天的运动信息</view>
 
       <view class="suggest-list">
         <view class="suggest-item" bindtap="quickAction" data-action="帮我记录今天的运动数据">
-          <text class="suggest-icon">✅</text>
-          <text class="suggest-text">运动打卡</text>
+          <view class="suggest-icon-wrap">
+            <text class="suggest-icon">✅</text>
+          </view>
+          <view class="suggest-text">运动打卡</view>
         </view>
         <view class="suggest-item" bindtap="quickAction" data-action="查询我今天的步数">
-          <text class="suggest-icon">👟</text>
-          <text class="suggest-text">步数查询</text>
+          <view class="suggest-icon-wrap">
+            <text class="suggest-icon">👟</text>
+          </view>
+          <view class="suggest-text">步数查询</view>
         </view>
         <view class="suggest-item" bindtap="quickAction" data-action="帮我制定一个健身计划">
-          <text class="suggest-icon">📋</text>
-          <text class="suggest-text">健身计划</text>
+          <view class="suggest-icon-wrap">
+            <text class="suggest-icon">📋</text>
+          </view>
+          <view class="suggest-text">健身计划</view>
         </view>
         <view class="suggest-item" bindtap="quickAction" data-action="分享一些跑步技巧">
-          <text class="suggest-icon">🏃</text>
-          <text class="suggest-text">跑步技巧</text>
+          <view class="suggest-icon-wrap">
+            <text class="suggest-icon">🏃</text>
+          </view>
+          <view class="suggest-text">跑步技巧</view>
         </view>
       </view>
     </view>
@@ -49,7 +73,9 @@
       <view class="msg-avatar">
         <image wx:if="{{item.role === 'user' && userProfile && userProfile.avatarUrl}}" src="{{userProfile.avatarUrl}}" mode="aspectFill"></image>
         <text wx:elif="{{item.role === 'user'}}">{{avatarText}}</text>
-        <text wx:else>记</text>
+        <view class="ai-avatar" wx:else>
+          <text>记</text>
+        </view>
       </view>
       <view class="msg-content">
         <view class="msg-bubble">
@@ -73,12 +99,16 @@
     <!-- 加载中 -->
     <view class="typing" wx:if="{{loading}}">
       <view class="msg-avatar">
-        <text>记</text>
+        <view class="ai-avatar">
+          <text>记</text>
+        </view>
       </view>
-      <view class="typing-dots">
-        <view class="dot"></view>
-        <view class="dot"></view>
-        <view class="dot"></view>
+      <view class="typing-bubble">
+        <view class="typing-dots">
+          <view class="dot"></view>
+          <view class="dot"></view>
+          <view class="dot"></view>
+        </view>
       </view>
     </view>
 
@@ -87,14 +117,29 @@
 
   <!-- 底部输入区 -->
   <view class="input-area">
-    <!-- 快捷操作 - 有消息时显示 -->
+    <!-- 快捷操作 -->
     <scroll-view class="quick-scroll" scroll-x wx:if="{{messages.length > 0}}">
       <view class="quick-list">
-        <view class="quick-item" bindtap="quickAction" data-action="今天运动打卡">打卡</view>
-        <view class="quick-item" bindtap="quickAction" data-action="查询今日步数">步数</view>
-        <view class="quick-item" bindtap="quickAction" data-action="推荐健身动作">健身</view>
-        <view class="quick-item" bindtap="quickAction" data-action="分享运动技巧">技巧</view>
-        <view class="quick-item" bindtap="quickAction" data-action="制定运动计划">计划</view>
+        <view class="quick-item" bindtap="quickAction" data-action="今天运动打卡">
+          <text class="quick-icon">✅</text>
+          <text>打卡</text>
+        </view>
+        <view class="quick-item" bindtap="quickAction" data-action="查询今日步数">
+          <text class="quick-icon">👟</text>
+          <text>步数</text>
+        </view>
+        <view class="quick-item" bindtap="quickAction" data-action="推荐健身动作">
+          <text class="quick-icon">💪</text>
+          <text>健身</text>
+        </view>
+        <view class="quick-item" bindtap="quickAction" data-action="分享运动技巧">
+          <text class="quick-icon">💡</text>
+          <text>技巧</text>
+        </view>
+        <view class="quick-item" bindtap="quickAction" data-action="制定运动计划">
+          <text class="quick-icon">📋</text>
+          <text>计划</text>
+        </view>
       </view>
     </scroll-view>
 
@@ -105,35 +150,48 @@
         type="text"
         value="{{inputText}}"
         placeholder="输入消息..."
+        placeholder-class="input-placeholder"
         bindinput="onInput"
         confirm-type="send"
         bindconfirm="sendMessage"
         adjust-position="{{true}}"
       />
       <button class="send-btn" bindtap="sendMessage" disabled="{{loading || !inputText}}">
-        <text>发送</text>
+        <text class="send-icon">➤</text>
       </button>
     </view>
   </view>
 
-  <!-- 分享到微信运动弹窗 -->
+  <!-- 分享弹窗 -->
   <view class="modal-mask" wx:if="{{showShareModal}}" bindtap="closeShareModal">
     <view class="modal-box" catchtap>
-      <view class="modal-icon">🏃</view>
-      <view class="modal-title">分享到微信运动</view>
+      <view class="modal-header">
+        <text class="modal-icon">🏃</text>
+        <text class="modal-title">分享到微信运动</text>
+      </view>
 
       <view class="modal-form">
-        <view class="form-row">
+        <view class="form-item">
           <text class="form-label">运动类型</text>
           <picker mode="selector" range="{{sportTypes}}" range-key="name" value="{{selectedSportIndex}}" bindchange="onSportTypeChange">
             <view class="form-picker">
               <text>{{sportTypes[selectedSportIndex].name}}</text>
-              <text class="arrow">▼</text>
+              <text class="picker-arrow">▼</text>
             </view>
           </picker>
         </view>
 
-        <view class="form-row">
+        <view class="form-item">
+          <text class="form-label">单位</text>
+          <picker mode="selector" range="{{sportTypes[selectedSportIndex].units}}" range-key="label" value="{{selectedUnitIndex}}" bindchange="onUnitChange">
+            <view class="form-picker">
+              <text>{{sportTypes[selectedSportIndex].units[selectedUnitIndex].label}}</text>
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+
+        <view class="form-item">
           <text class="form-label">运动数值</text>
           <view class="form-input-wrap">
             <input
@@ -143,14 +201,13 @@
               bindinput="onValueInput"
               placeholder="请输入"
             />
-            <text class="form-unit">{{sportTypes[selectedSportIndex].unit}}</text>
           </view>
         </view>
       </view>
 
       <view class="modal-btns">
         <button class="modal-btn cancel" bindtap="closeShareModal">取消</button>
-        <button class="modal-btn confirm" bindtap="shareToWeRun">分享</button>
+        <button class="modal-btn confirm" bindtap="shareToWeRun">确认分享</button>
       </view>
     </view>
   </view>

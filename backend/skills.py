@@ -812,6 +812,61 @@ class StepSkills:
             return "已注册，未绑定设备"
         return "已注册，已绑定设备，可刷步"
 
+    def unbind_zepp_account(self, user_key: str) -> dict:
+        """
+        解绑当前Zepp账号，准备重新绑定新账号
+
+        清除用户的Zepp账号信息，重置绑定状态，让用户可以重新注册新账号
+        """
+        user = self.get_user(user_key)
+        if not user:
+            return {'success': False, 'message': '用户不存在，请先登录'}
+
+        if not user.get('zepp_email'):
+            return {'success': False, 'message': '您还没有绑定Zepp账号，无需解绑。直接说"我要刷步"即可注册新账号。'}
+
+        old_email = user.get('zepp_email')
+
+        # 清除Zepp账号信息和绑定状态
+        try:
+            with get_db_session() as db:
+                db_user = db.query(User).filter(User.user_key == user_key).first()
+                if db_user:
+                    db_user.zepp_email = None
+                    db_user.zepp_password = None
+                    db_user.zepp_userid = None
+                    db_user.bind_status = 0
+                    db_user.bind_button_triggered = 0
+                    db_user.login_token = None
+                    db_user.app_token = None
+                    db_user.token_updated_at = None
+
+            self._log(f"用户 {user_key} 已解绑Zepp账号: {old_email}")
+
+            return {
+                'success': True,
+                'message': f'已解绑账号 {old_email}。现在您可以重新注册新账号，请回复"我要刷步"或"注册"开始新账号绑定。'
+            }
+        except Exception as e:
+            self._log(f"解绑失败: {e}")
+            return {'success': False, 'message': f'解绑失败：{str(e)}'}
+
+    def rebind_zepp_account(self, user_key: str, captcha_code: str = None) -> dict:
+        """
+        换绑Zepp账号 - 解绑旧账号并注册新账号
+
+        这是unbind + register的组合操作，方便用户一键换绑
+        """
+        # 先解绑旧账号
+        user = self.get_user(user_key)
+        if user and user.get('zepp_email'):
+            unbind_result = self.unbind_zepp_account(user_key)
+            if not unbind_result.get('success'):
+                return unbind_result
+
+        # 然后注册新账号
+        return self.register_zepp_account(user_key, captcha_code)
+
 
 # 全局实例
 skills = StepSkills()
@@ -1050,6 +1105,38 @@ FUNCTIONS = [
             },
             "required": ["user_key", "card_key"]
         }
+    },
+    {
+        "name": "unbind_zepp_account",
+        "description": "解绑当前Zepp账号。当用户说'解绑账号'、'解除绑定'、'换绑账号'、'重新绑定'、'注销账号'等时调用。解绑后用户可以注册新的Zepp账号。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_key": {
+                    "type": "string",
+                    "description": "用户唯一标识"
+                }
+            },
+            "required": ["user_key"]
+        }
+    },
+    {
+        "name": "rebind_zepp_account",
+        "description": "换绑Zepp账号（解绑旧账号+注册新账号）。当用户说'换绑zepp账号'、'更换账号'、'重新注册'、'绑定新账号'等时调用。这是一个一步完成解绑和重新注册的操作。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "user_key": {
+                    "type": "string",
+                    "description": "用户唯一标识"
+                },
+                "captcha_code": {
+                    "type": "string",
+                    "description": "用户输入的验证码（仅当需要手动输入验证码时传入）"
+                }
+            },
+            "required": ["user_key"]
+        }
     }
 ]
 
@@ -1113,6 +1200,13 @@ def execute_function(function_name: str, arguments: dict) -> dict:
             result = skills.use_card(
                 arguments.get("user_key"),
                 arguments.get("card_key")
+            )
+        elif function_name == "unbind_zepp_account":
+            result = skills.unbind_zepp_account(arguments.get("user_key"))
+        elif function_name == "rebind_zepp_account":
+            result = skills.rebind_zepp_account(
+                arguments.get("user_key"),
+                arguments.get("captcha_code")
             )
         else:
             result = {"success": False, "message": f"未知函数: {function_name}"}

@@ -11,37 +11,101 @@ Page({
     userInfo: null,
     userProfile: null,
     avatarText: '微',
+    greeting: '你好',
     vipExpireAt: null,
     remainingDays: 0,
     isVip: false,
     loading: true,
-    reviewMode: false
-    // 广告相关 - 暂时隐藏
-    // adRewardDays: 1,
-    // adDailyLimit: 3,
-    // adDailyCount: 0,
-    // adCanWatch: false
+    reviewMode: false,
+    // 登录弹窗
+    showLoginModal: false,
+    loginLoading: false,
+    loginBenefits: [
+      { icon: '🏃', text: '记录运动数据到微信运动' },
+      { icon: '📊', text: '查看历史运动记录' },
+      { icon: '🎯', text: '个性化运动建议' }
+    ]
   },
 
   onLoad() {
     this.syncReviewMode()
     this.syncUserProfile()
     this.loadUserInfo()
-    // this.loadAdConfig()
   },
 
   onShow() {
     this.syncReviewMode()
     this.syncUserProfile()
     this.loadUserInfo()
-    // this.loadAdStatus()
+    // 检查是否需要显示登录弹窗
+    this.checkShowLoginModal()
   },
+
+  // 检查是否需要显示登录弹窗
+  checkShowLoginModal() {
+    const app = getApp()
+    const isLoggedIn = !!(app.globalData.openid || wx.getStorageSync('openid'))
+    const hasSkippedLogin = wx.getStorageSync('hasSkippedLogin')
+
+    // 未登录且没有跳过过登录，则显示弹窗
+    if (!isLoggedIn && !hasSkippedLogin) {
+      this.setData({ showLoginModal: true })
+    }
+  },
+
+  // 处理登录
+  async handleLogin() {
+    const app = getApp()
+
+    this.setData({ loginLoading: true })
+
+    try {
+      await app.loginWithWechat()
+      this.setData({
+        showLoginModal: false,
+        loginLoading: false
+      })
+      this.syncUserProfile()
+      await this.loadUserInfo()
+      wx.showToast({
+        title: '登录成功',
+        icon: 'success'
+      })
+    } catch (e) {
+      this.setData({ loginLoading: false })
+      wx.showToast({
+        title: e.message || '登录失败',
+        icon: 'none'
+      })
+    }
+  },
+
+  // 跳过登录
+  skipLogin() {
+    wx.setStorageSync('hasSkippedLogin', true)
+    this.setData({ showLoginModal: false })
+  },
+
+  // 阻止触摸穿透
+  preventTouchMove() {},
 
   syncReviewMode() {
     const app = getApp()
     this.setData({
-      reviewMode: app.isReviewMode()
+      reviewMode: app.isReviewMode(),
+      greeting: this.getGreeting()
     })
+  },
+
+  getGreeting() {
+    const hour = new Date().getHours()
+    if (hour < 6) return '夜深了'
+    if (hour < 9) return '早上好'
+    if (hour < 12) return '上午好'
+    if (hour < 14) return '中午好'
+    if (hour < 18) return '下午好'
+    if (hour < 22) return '晚上好'
+    return '夜深了'
   },
 
   syncUserProfile() {
@@ -53,7 +117,8 @@ Page({
 
     this.setData({
       userProfile,
-      avatarText
+      avatarText,
+      greeting: this.getGreeting()
     })
   },
 

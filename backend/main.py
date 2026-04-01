@@ -4,8 +4,9 @@ FastAPI 主应用
 """
 import os
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, get_db_session
@@ -17,6 +18,21 @@ from collections import defaultdict
 import threading
 
 app = FastAPI(title="AI智能刷步系统", version="1.0.0")
+
+
+class BlockSensitiveFilesMiddleware(BaseHTTPMiddleware):
+    """阻止对敏感文件的访问"""
+    async def dispatch(self, request, call_next):
+        path = request.url.path.lower()
+        # 阻止敏感文件/目录访问
+        blocked_patterns = ['.env', '.git', '.htaccess', '.htpasswd', 'credentials',
+                           'config.json', 'secrets', '.pem', '.key', 'docker-compose']
+        if any(pattern in path for pattern in blocked_patterns):
+            return Response(content="Not Found", status_code=404)
+        return await call_next(request)
+
+
+app.add_middleware(BlockSensitiveFilesMiddleware)
 
 # CORS 配置
 app.add_middleware(
@@ -693,9 +709,6 @@ async def payment_notify(request: Request):
             print(f"[Payment] 支付成功(回调): {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
 
     return Response(content=wechat_pay.success_response(), media_type="application/xml")
-
-
-from fastapi import Request, Response
 
 
 @app.get("/api/health")

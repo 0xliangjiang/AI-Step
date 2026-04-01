@@ -5,6 +5,15 @@
     "pages/my/my",
     "pages/vip/vip"
   ],
+  "requiredPrivateInfos": [
+    "chooseAddress",
+    "chooseLocation"
+  ],
+  "permission": {
+    "scope.werun": {
+      "desc": "用于将运动数据分享到微信运动"
+    }
+  },
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#667eea",
