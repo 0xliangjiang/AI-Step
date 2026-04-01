@@ -404,6 +404,16 @@ class StepSkills:
 
             bind_msg = ""
             if bind_result['success']:
+                # 更新绑定状态
+                with get_db_session() as db:
+                    db_user = db.query(User).filter(User.user_key == user_key).first()
+                    if db_user:
+                        if bind_result.get('userid'):
+                            db_user.zepp_userid = bind_result.get('userid')
+                        # 如果不使用代理模式，绑定成功即视为完成
+                        if not USE_PROXY_MODE:
+                            db_user.bind_status = 1
+                            db_user.bind_button_triggered = 1
                 bind_msg = "手环已绑定，"
             else:
                 # 如果是API Key未配置，给出更明确的提示
@@ -413,7 +423,14 @@ class StepSkills:
                 else:
                     bind_msg = f"手环绑定失败({error_msg})，{self._bind_guide_text()}"
 
-            # 2. 获取微信绑定二维码（用户扫码绑定微信）
+            # 如果不使用代理模式，绑定成功后直接返回，不需要扫码
+            if not USE_PROXY_MODE and bind_result['success']:
+                return {
+                    'success': True,
+                    'message': f'注册成功！手环已绑定。您现在可以开始刷步了，告诉我想要刷多少步。'
+                }
+
+            # 2. 获取微信绑定二维码（用户扫码绑定微信）- 仅代理模式需要
             qr_result = api.get_qrcode_ticket()
             if qr_result['success']:
                 ticket = qr_result['ticket']
@@ -442,14 +459,43 @@ class StepSkills:
     def _get_bindqr_for_user_dict(self, user: Dict[str, Any], auto_trigger: bool = False) -> dict:
         """为已注册用户绑定手环并获取微信绑定二维码（使用字典参数）"""
         try:
+            user_key = user.get('user_key')
+
+            # 如果不使用代理模式，直接调用第三方API绑定
+            if not USE_PROXY_MODE:
+                bind_result = _bind_device_with_retry(
+                    user.get('zepp_email'),
+                    user.get('zepp_password'),
+                    verbose=APP_DEBUG,
+                )
+                self._log(f"直连模式绑定手环结果: {bind_result}")
+
+                if bind_result.get('success'):
+                    with get_db_session() as db:
+                        db_user = db.query(User).filter(User.user_key == user_key).first()
+                        if db_user:
+                            db_user.bind_status = 1
+                            db_user.bind_button_triggered = 1
+                            if bind_result.get('userid'):
+                                db_user.zepp_userid = bind_result.get('userid')
+
+                    return {
+                        'success': True,
+                        'message': '绑定成功！您现在可以开始刷步了，告诉我想要刷多少步。'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'message': f'绑定失败：{bind_result.get("message", "未知错误")}'
+                    }
+
+            # 代理模式：需要获取微信绑定二维码
             api = ZeppAPI(
                 user.get('zepp_email'), user.get('zepp_password'),
                 verbose=APP_DEBUG,
                 use_tls=False,
                 use_proxy=USE_PROXY
             )
-
-            user_key = user.get('user_key')
 
             # 检查是否有缓存的token
             if user.get('login_token') and user.get('app_token'):
@@ -551,16 +597,27 @@ class StepSkills:
         self._log(f"绑定手环结果: {bind_result}")
 
         if bind_result['success']:
-            # 更新 bind_button_triggered 状态
+            # 更新绑定状态
             with get_db_session() as db:
                 db_user = db.query(User).filter(User.user_key == user_key).first()
                 if db_user:
                     db_user.bind_button_triggered = 1
+                    # 如果不使用代理模式（直连第三方API），绑定成功即视为完成绑定
+                    if not USE_PROXY_MODE:
+                        db_user.bind_status = 1
+                        if bind_result.get('userid'):
+                            db_user.zepp_userid = bind_result.get('userid')
 
-            return {
-                'success': True,
-                'message': '手环绑定成功！接下来请扫码绑定微信，完成后回复"已绑定"'
-            }
+            if not USE_PROXY_MODE:
+                return {
+                    'success': True,
+                    'message': '手环绑定成功！您现在可以开始刷步了，告诉我想要刷多少步。'
+                }
+            else:
+                return {
+                    'success': True,
+                    'message': '手环绑定成功！接下来请扫码绑定微信，完成后回复"已绑定"'
+                }
 
         return {
             'success': False,
@@ -570,7 +627,26 @@ class StepSkills:
     def check_bindstatus(self, user_key: str) -> dict:
         """检查绑定状态"""
         user = self.get_user(user_key)
-        if not user or not user.get('zepp_userid'):
+        if not user or not user.get('zepp_email'):
+            return {'success': False, 'message': '您还没有注册账号'}
+
+        # 如果不使用代理模式（直连第三方API），绑定状态由 bind_device 设置
+        # 只要用户有 zepp_email 就认为已绑定
+        if not USE_PROXY_MODE:
+            with get_db_session() as db:
+                db_user = db.query(User).filter(User.user_key == user_key).first()
+                if db_user:
+                    db_user.bind_status = 1
+                    db_user.bind_button_triggered = 1
+
+            return {
+                'success': True,
+                'is_bound': True,
+                'message': '绑定成功！您现在可以开始刷步了，告诉我想要刷多少步。'
+            }
+
+        # 代理模式：需要检查微信绑定状态
+        if not user.get('zepp_userid'):
             return {'success': False, 'message': '您还没有注册账号'}
 
         # 调用 API 检查绑定状态
@@ -908,7 +984,7 @@ FUNCTIONS = [
     },
     {
         "name": "bind_device",
-        "description": "绑定手环设备。通过第三方API自动完成，无需扫码。当用户说'绑定手环'、'绑定设备'、'触发绑定'等时调用。",
+        "description": "绑定手环设备。通过第三方API自动完成，无需扫码。当用户说'绑定手环'、'绑定设备'等时调用。注意：如果用户说'已绑定'、'绑定好了'，应该调用 check_bindstatus 而不是这个函数。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -922,7 +998,7 @@ FUNCTIONS = [
     },
     {
         "name": "check_bindstatus",
-        "description": "检查用户是否已绑定微信。当用户说'已绑定'、'绑定好了'等时调用。",
+        "description": "检查用户是否已绑定微信。当用户说'已绑定'、'绑定好了'、'绑定完成'、'已经绑定了'等表示绑定完成的意图时调用此函数来确认绑定状态。重要：这是唯一能确认微信绑定成功并更新绑定状态的函数。",
         "parameters": {
             "type": "object",
             "properties": {
