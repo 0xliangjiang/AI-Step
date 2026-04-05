@@ -74,11 +74,6 @@ ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "ai-step-admin-secret-key-2024"
 PROXY_API_URL = os.getenv("PROXY_API_URL", "https://api.nstproxy.com/api/v1/generate/apiproxies?count=1&country=ANY&protocol=http&sessionDuration=10&channelId=195AC9985799B5C8&format=1&fType=1&lfType=1&token=NSTPROXY-FB06CE564778C53CF991346F612E200B")
 USE_PROXY = os.getenv("USE_PROXY", "true").lower() in ("1", "true", "yes", "on")
 
-# 国内刷步微服务配置
-# 国外服务器通过此 URL 调用部署在国内的 step_service
-STEP_SERVICE_URL = os.getenv("STEP_SERVICE_URL", "http://localhost:8001")
-STEP_SERVICE_KEY = os.getenv("STEP_SERVICE_KEY", "change-me-please")
-
 # Zepp 加密配置
 ZEPP_AES_KEY = os.getenv("ZEPP_AES_KEY", "xeNtBVqzDc6tuNTh")
 ZEPP_AES_IV = os.getenv("ZEPP_AES_IV", "MAAAYAAAAAAAAABg")
