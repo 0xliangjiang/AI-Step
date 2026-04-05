@@ -12,53 +12,7 @@ from sqlalchemy.exc import OperationalError
 
 from models import ScheduledTask, User, SessionLocal, get_db_session
 from config import APP_DEBUG, USE_PROXY, USE_PROXY_MODE
-
-# 导入 step_brush
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from step_brush import ZeppAPI
-from step_brush import bindband
-
-# 重试装饰器
-def retry_on_failure(max_retries: int = 3, delay: float = 1.0, backoff: float = 2.0):
-    """
-    重试装饰器，用于网络请求失败时自动重试
-    """
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            last_error = None
-            current_delay = delay
-            for attempt in range(max_retries):
-                try:
-                    result = func(*args, **kwargs)
-                    if result.get('success'):
-                        return result
-                    error_msg = result.get('message', '')
-                    if any(keyword in error_msg for keyword in ['未配置', '不存在', '无效', '格式错误', '参数']):
-                        return result
-                    last_error = error_msg
-                    if attempt < max_retries - 1:
-                        print(f"[Retry] {func.__name__} 第 {attempt + 1} 次失败: {error_msg}，{current_delay}秒后重试")
-                        import time as time_module
-                        time_module.sleep(current_delay)
-                        current_delay *= backoff
-                except Exception as e:
-                    last_error = str(e)
-                    if attempt < max_retries - 1:
-                        print(f"[Retry] {func.__name__} 第 {attempt + 1} 次异常: {e}，{current_delay}秒后重试")
-                        import time as time_module
-                        time_module.sleep(current_delay)
-                        current_delay *= backoff
-            return {'success': False, 'message': f'请求失败（已重试{max_retries}次）: {last_error}'}
-        return wrapper
-    return decorator
-
-
-@retry_on_failure(max_retries=3, delay=1.0, backoff=2.0)
-def _bindband_with_retry_scheduler(email: str, password: str, step: int, verbose: bool, use_proxy: bool) -> dict:
-    """带重试机制的绑定手环/刷步接口"""
-    return bindband(email, password, step=step, verbose=verbose, use_proxy=use_proxy)
+from step_client import step_client
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -218,21 +172,27 @@ class StepScheduler:
                     return False
 
                 if USE_PROXY_MODE:
-                    api = ZeppAPI(
+                    # 通过国内刷步微服务刷步；传入缓存 token 加速（微服务内部会在 token 过期时自动重登录）
+                    result = step_client.brush(
                         user.zepp_email,
                         user.zepp_password,
-                        verbose=APP_DEBUG,
-                        use_proxy=USE_PROXY
+                        target_steps,
+                        login_token=user.login_token,
+                        app_token=user.app_token,
+                        userid=user.zepp_userid,
                     )
-                    api.userid = user.zepp_userid
-                    result = api.update_step(target_steps)
+                    # 更新 token 缓存
+                    if result.get("login_token") and result.get("app_token"):
+                        user.login_token = result["login_token"]
+                        user.app_token = result["app_token"]
+                        from datetime import datetime
+                        user.token_updated_at = datetime.now()
                 else:
-                    result = _bindband_with_retry_scheduler(
+                    result = step_client.bind(
                         user.zepp_email,
                         user.zepp_password,
                         step=target_steps,
-                        verbose=APP_DEBUG,
-                        use_proxy=False
+                        use_proxy=False,
                     )
 
                 return result.get("success", False)
