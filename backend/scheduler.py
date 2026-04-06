@@ -168,14 +168,15 @@ class StepScheduler:
         # 计算基础步数（按总时段平均分配）
         base_steps_per_hour = math.ceil(task.target_steps / total_hours)
 
-        # 确定本次要执行的时段：执行下一个未执行的时段
+        # 确定本次要执行的时段：执行当前应处于的时段
         slot_to_execute = task.current_step_index
 
-        # 如果当前时段已经超过要执行的时段，只执行当前应该执行的时段
-        # 而不是一次性补齐所有错过的时段
+        # 如果落后于当前时段，直接跳到当前时段，跳过已错过的时段
+        # 避免逐分钟追赶导致短时间内快速刷满步数
         if slot_to_execute < expected_index:
-            # 错过了多个时段，只执行下一个时段，让后续调度继续补
-            self.log(f"任务 {task.user_key}: 检测到错过时段，当前时段 {expected_index + 1}，将执行时段 {slot_to_execute + 1}")
+            self.log(f"任务 {task.user_key}: 跳过已错过时段 {slot_to_execute + 1}-{expected_index}，直接执行当前时段 {expected_index + 1}")
+            slot_to_execute = expected_index
+            task.current_step_index = expected_index
 
         # 计算本次应该达到的累计步数
         # 最后一个时段补齐剩余步数，其他时段按平均值
