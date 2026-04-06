@@ -7,6 +7,9 @@ import time
 import logging
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi.responses import StreamingResponse
+import csv
+import io
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy import func
@@ -683,11 +686,72 @@ async def generate_cards(request: GenerateCardsRequest, _: str = Depends(verify_
         return GenerateCardsResponse(success=False, message=f"生成失败: {str(e)}")
 
 
+@router.get("/cards/export")
+async def export_cards(
+    status: str = "",
+    days: int = 0,
+    _: str = Depends(verify_token)
+):
+    """导出卡密为 CSV"""
+    with get_db_session() as db:
+        query = db.query(Card)
+        if status:
+            query = query.filter(Card.status == status)
+        if days:
+            query = query.filter(Card.days == days)
+        cards = query.order_by(Card.created_at.desc()).all()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['卡密', '天数', '状态', '使用者', '使用时间', '创建时间'])
+        for card in cards:
+            writer.writerow([
+                card.card_key,
+                card.days,
+                '未使用' if card.status == 'unused' else '已使用',
+                card.used_by or '',
+                card.used_at.strftime('%Y-%m-%d %H:%M:%S') if card.used_at else '',
+                card.created_at.strftime('%Y-%m-%d %H:%M:%S') if card.created_at else ''
+            ])
+        output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue().encode('utf-8-sig')]),
+        media_type='text/csv',
+        headers={'Content-Disposition': 'attachment; filename="cards.csv"'}
+    )
+
+
+@router.get("/cards/stats")
+async def get_card_stats(_: str = Depends(verify_token)):
+    """获取卡密统计"""
+    with get_db_session() as db:
+        total = db.query(Card).count()
+        unused = db.query(Card).filter(Card.status == "unused").count()
+        used = db.query(Card).filter(Card.status == "used").count()
+        # 按天数分组统计未使用卡密
+        from sqlalchemy import func
+        days_stats = db.query(Card.days, func.count(Card.id)).filter(
+            Card.status == "unused"
+        ).group_by(Card.days).order_by(Card.days).all()
+
+        return {
+            "success": True,
+            "data": {
+                "total": total,
+                "unused": unused,
+                "used": used,
+                "days_breakdown": [{"days": d, "count": c} for d, c in days_stats]
+            }
+        }
+
+
 @router.get("/cards", response_model=CardListResponse)
 async def get_cards(
     page: int = 1,
     page_size: int = 20,
     status: str = "",
+    days: int = 0,
     _: str = Depends(verify_token)
 ):
     """获取卡密列表"""
@@ -696,6 +760,8 @@ async def get_cards(
 
         if status:
             query = query.filter(Card.status == status)
+        if days:
+            query = query.filter(Card.days == days)
 
         total = query.count()
 

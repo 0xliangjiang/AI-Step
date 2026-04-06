@@ -5,6 +5,27 @@
       <p>生成和管理充值卡密</p>
     </div>
 
+    <!-- 统计栏 -->
+    <div class="stats-row" v-if="stats">
+      <div class="stat-card">
+        <div class="stat-num">{{ stats.total }}</div>
+        <div class="stat-label">总卡密</div>
+      </div>
+      <div class="stat-card unused">
+        <div class="stat-num">{{ stats.unused }}</div>
+        <div class="stat-label">未使用</div>
+      </div>
+      <div class="stat-card used">
+        <div class="stat-num">{{ stats.used }}</div>
+        <div class="stat-label">已使用</div>
+      </div>
+      <div class="stat-breakdown" v-if="stats.days_breakdown.length">
+        <span v-for="item in stats.days_breakdown" :key="item.days" class="breakdown-item">
+          {{ item.days }}天 × {{ item.count }}张
+        </span>
+      </div>
+    </div>
+
     <!-- 生成卡密 -->
     <div class="generate-card">
       <h3>批量生成卡密</h3>
@@ -27,24 +48,46 @@
     <div class="generate-result" v-if="generatedCards.length > 0">
       <div class="result-header">
         <h4>生成成功 ({{ generatedCards.length }} 张)</h4>
-        <button class="btn-copy" @click="copyCards">复制全部</button>
+        <div class="result-actions">
+          <button class="btn-action" @click="copyGeneratedCards">
+            {{ copyBtnText }}
+          </button>
+          <button class="btn-action export" @click="downloadGeneratedCards">
+            下载 TXT
+          </button>
+        </div>
       </div>
       <div class="card-list">
-        <div class="card-item" v-for="card in generatedCards" :key="card.card_key">
+        <div
+          class="card-item"
+          v-for="card in generatedCards"
+          :key="card.card_key"
+          @click="copySingleCard(card.card_key)"
+          title="点击复制"
+        >
           <span class="card-key">{{ card.card_key }}</span>
           <span class="card-days">{{ card.days }}天</span>
+          <span class="copy-hint">点击复制</span>
         </div>
       </div>
     </div>
 
-    <!-- 筛选 -->
+    <!-- 筛选栏 -->
     <div class="filter-bar">
-      <select v-model="filterStatus" @change="loadCards">
+      <select v-model="filterStatus" @change="onFilterChange">
         <option value="">全部状态</option>
         <option value="unused">未使用</option>
         <option value="used">已使用</option>
       </select>
+      <select v-model="filterDays" @change="onFilterChange">
+        <option value="0">全部天数</option>
+        <option v-for="item in stats && stats.days_breakdown" :key="item.days" :value="item.days">
+          {{ item.days }} 天
+        </option>
+      </select>
       <button class="btn-refresh" @click="loadCards">刷新</button>
+      <button class="btn-export" @click="exportCSV">导出 CSV</button>
+      <button class="btn-export txt" @click="exportTXT">导出 TXT</button>
     </div>
 
     <!-- 卡密列表 -->
@@ -63,16 +106,20 @@
         </thead>
         <tbody>
           <tr v-for="card in cards" :key="card.id">
-            <td><code>{{ card.card_key }}</code></td>
+            <td>
+              <code @click="copySingleCard(card.card_key)" class="copyable" title="点击复制">
+                {{ card.card_key }}
+              </code>
+            </td>
             <td>{{ card.days }} 天</td>
             <td>
               <span :class="['status-badge', card.status]">
                 {{ card.status === 'unused' ? '未使用' : '已使用' }}
               </span>
             </td>
-            <td>{{ card.used_by || '-' }}</td>
-            <td>{{ card.used_at || '-' }}</td>
-            <td>{{ card.created_at }}</td>
+            <td class="text-muted">{{ card.used_by || '-' }}</td>
+            <td class="text-muted">{{ card.used_at || '-' }}</td>
+            <td class="text-muted">{{ card.created_at }}</td>
             <td>
               <button
                 v-if="card.status === 'unused'"
@@ -90,12 +137,15 @@
       </table>
     </div>
 
-    <!-- 统计 -->
-    <div class="stats-bar" v-if="cards.length > 0">
-      <span>共 {{ total }} 张卡密</span>
-      <span>未使用: {{ cards.filter(c => c.status === 'unused').length }}</span>
-      <span>已使用: {{ cards.filter(c => c.status === 'used').length }}</span>
+    <!-- 分页 -->
+    <div class="pagination" v-if="total > pageSize">
+      <button :disabled="page <= 1" @click="changePage(page - 1)">上一页</button>
+      <span>第 {{ page }} / {{ totalPages }} 页，共 {{ total }} 条</span>
+      <button :disabled="page >= totalPages" @click="changePage(page + 1)">下一页</button>
     </div>
+
+    <!-- 复制提示 toast -->
+    <div class="toast" v-if="toastMsg" :class="{ show: toastMsg }">{{ toastMsg }}</div>
   </div>
 </template>
 
@@ -106,54 +156,154 @@ export default {
   name: 'AdminCards',
   data() {
     return {
-      generateForm: {
-        count: 10,
-        days: 30
-      },
+      generateForm: { count: 10, days: 30 },
       generating: false,
       generatedCards: [],
       cards: [],
       total: 0,
-      filterStatus: ''
+      page: 1,
+      pageSize: 20,
+      filterStatus: '',
+      filterDays: 0,
+      stats: null,
+      copyBtnText: '复制全部',
+      toastMsg: '',
+      toastTimer: null
+    }
+  },
+  computed: {
+    totalPages() {
+      return Math.ceil(this.total / this.pageSize)
     }
   },
   mounted() {
+    this.loadStats()
     this.loadCards()
   },
   methods: {
-    async generateCards() {
-      if (this.generateForm.count < 1 || this.generateForm.count > 100) {
-        alert('生成数量范围 1-100')
-        return
-      }
+    token() {
+      return localStorage.getItem('adminToken')
+    },
 
-      this.generating = true
+    showToast(msg) {
+      this.toastMsg = msg
+      if (this.toastTimer) clearTimeout(this.toastTimer)
+      this.toastTimer = setTimeout(() => { this.toastMsg = '' }, 2000)
+    },
+
+    // 兼容 HTTP 环境的复制方法
+    async copyText(text) {
       try {
-        const token = localStorage.getItem('adminToken')
-        const res = await axios.post('/api/admin/cards/generate', this.generateForm, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-
-        if (res.data.success) {
-          this.generatedCards = res.data.cards
-          alert(res.data.message)
-          this.loadCards()
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text)
         } else {
-          alert(res.data.message)
+          // fallback for HTTP
+          const ta = document.createElement('textarea')
+          ta.value = text
+          ta.style.position = 'fixed'
+          ta.style.opacity = '0'
+          document.body.appendChild(ta)
+          ta.focus()
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
         }
-      } catch (error) {
-        alert('生成失败')
-      } finally {
-        this.generating = false
+        return true
+      } catch {
+        return false
       }
+    },
+
+    async copySingleCard(key) {
+      const ok = await this.copyText(key)
+      this.showToast(ok ? `已复制：${key}` : '复制失败，请手动选择')
+    },
+
+    async copyGeneratedCards() {
+      const text = this.generatedCards.map(c => `${c.card_key}`).join('\n')
+      const ok = await this.copyText(text)
+      if (ok) {
+        this.copyBtnText = '已复制 ✓'
+        setTimeout(() => { this.copyBtnText = '复制全部' }, 2000)
+      } else {
+        this.showToast('复制失败，请手动复制')
+      }
+    },
+
+    downloadGeneratedCards() {
+      const text = this.generatedCards.map(c => `${c.card_key}  (${c.days}天)`).join('\n')
+      this.downloadFile(text, `cards_${this.generatedCards[0].days}days.txt`, 'text/plain')
+    },
+
+    downloadFile(content, filename, type) {
+      const blob = new Blob([content], { type })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+      URL.revokeObjectURL(url)
+    },
+
+    async exportCSV() {
+      try {
+        const params = new URLSearchParams()
+        if (this.filterStatus) params.set('status', this.filterStatus)
+        if (this.filterDays) params.set('days', this.filterDays)
+        const url = `/api/admin/cards/export?${params}&_t=${Date.now()}`
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${this.token()}` }
+        })
+        const blob = await res.blob()
+        this.downloadFile(await blob.text(), 'cards.csv', 'text/csv;charset=utf-8-sig')
+        this.showToast('CSV 已下载')
+      } catch {
+        this.showToast('导出失败')
+      }
+    },
+
+    async exportTXT() {
+      try {
+        const params = new URLSearchParams()
+        if (this.filterStatus) params.set('status', this.filterStatus)
+        if (this.filterDays) params.set('days', this.filterDays)
+        // 拉取全量数据
+        const res = await axios.get('/api/admin/cards', {
+          params: { status: this.filterStatus, days: this.filterDays || 0, page: 1, page_size: 9999 },
+          headers: { Authorization: `Bearer ${this.token()}` }
+        })
+        const cards = res.data.data || []
+        const lines = cards.map(c =>
+          c.status === 'unused'
+            ? c.card_key
+            : `${c.card_key}  [已使用]`
+        )
+        this.downloadFile(lines.join('\n'), 'cards.txt', 'text/plain;charset=utf-8')
+        this.showToast(`已导出 ${cards.length} 条`)
+      } catch {
+        this.showToast('导出失败')
+      }
+    },
+
+    async loadStats() {
+      try {
+        const res = await axios.get('/api/admin/cards/stats', {
+          headers: { Authorization: `Bearer ${this.token()}` }
+        })
+        if (res.data.success) this.stats = res.data.data
+      } catch { /* ignore */ }
     },
 
     async loadCards() {
       try {
-        const token = localStorage.getItem('adminToken')
         const res = await axios.get('/api/admin/cards', {
-          params: { status: this.filterStatus },
-          headers: { Authorization: `Bearer ${token}` }
+          params: {
+            page: this.page,
+            page_size: this.pageSize,
+            status: this.filterStatus,
+            days: this.filterDays || 0
+          },
+          headers: { Authorization: `Bearer ${this.token()}` }
         })
         this.cards = res.data.data || []
         this.total = res.data.total || 0
@@ -162,24 +312,53 @@ export default {
       }
     },
 
-    async deleteCard(card) {
-      if (!confirm('确定删除该卡密？')) return
+    onFilterChange() {
+      this.page = 1
+      this.loadCards()
+    },
+
+    changePage(p) {
+      this.page = p
+      this.loadCards()
+    },
+
+    async generateCards() {
+      if (this.generateForm.count < 1 || this.generateForm.count > 100) {
+        alert('生成数量范围 1-100')
+        return
+      }
+      this.generating = true
       try {
-        const token = localStorage.getItem('adminToken')
-        await axios.delete(`/api/admin/cards/${card.id}`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const res = await axios.post('/api/admin/cards/generate', this.generateForm, {
+          headers: { Authorization: `Bearer ${this.token()}` }
         })
-        this.loadCards()
-      } catch (error) {
-        alert(error.response?.data?.message || '删除失败')
+        if (res.data.success) {
+          this.generatedCards = res.data.cards
+          this.showToast(res.data.message)
+          this.loadCards()
+          this.loadStats()
+        } else {
+          alert(res.data.message)
+        }
+      } catch {
+        alert('生成失败')
+      } finally {
+        this.generating = false
       }
     },
 
-    copyCards() {
-      const text = this.generatedCards.map(c => `${c.card_key} (${c.days}天)`).join('\n')
-      navigator.clipboard.writeText(text).then(() => {
-        alert('已复制到剪贴板')
-      })
+    async deleteCard(card) {
+      if (!confirm('确定删除该卡密？')) return
+      try {
+        await axios.delete(`/api/admin/cards/${card.id}`, {
+          headers: { Authorization: `Bearer ${this.token()}` }
+        })
+        this.showToast('已删除')
+        this.loadCards()
+        this.loadStats()
+      } catch (error) {
+        alert(error.response?.data?.message || '删除失败')
+      }
     }
   }
 }
@@ -188,6 +367,7 @@ export default {
 <style scoped>
 .admin-page {
   padding: 20px;
+  position: relative;
 }
 
 .page-header {
@@ -206,6 +386,54 @@ export default {
   font-size: 14px;
 }
 
+/* 统计栏 */
+.stats-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: #192734;
+  border-radius: 10px;
+  padding: 14px 20px;
+  text-align: center;
+  min-width: 80px;
+}
+
+.stat-card.unused .stat-num { color: #1da1f2; }
+.stat-card.used .stat-num { color: #8899a6; }
+
+.stat-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: #8899a6;
+  margin-top: 4px;
+}
+
+.stat-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+
+.breakdown-item {
+  background: #22303c;
+  color: #8899a6;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+/* 生成区 */
 .generate-card {
   background: #192734;
   border-radius: 12px;
@@ -257,15 +485,10 @@ export default {
   transition: background 0.2s;
 }
 
-.btn-generate:hover:not(:disabled) {
-  background: #1a91da;
-}
+.btn-generate:hover:not(:disabled) { background: #1a91da; }
+.btn-generate:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.btn-generate:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
+/* 生成结果 */
 .generate-result {
   background: #192734;
   border-radius: 12px;
@@ -280,13 +503,12 @@ export default {
   margin-bottom: 16px;
 }
 
-.result-header h4 {
-  color: #17bf63;
-  font-size: 14px;
-}
+.result-header h4 { color: #17bf63; font-size: 14px; }
 
-.btn-copy {
-  padding: 6px 12px;
+.result-actions { display: flex; gap: 8px; }
+
+.btn-action {
+  padding: 6px 14px;
   border: 1px solid #38444d;
   border-radius: 6px;
   background: transparent;
@@ -295,43 +517,44 @@ export default {
   cursor: pointer;
 }
 
-.btn-copy:hover {
-  background: #22303c;
-  color: #fff;
-}
+.btn-action:hover { background: #22303c; color: #fff; }
+.btn-action.export { border-color: #17bf63; color: #17bf63; }
+.btn-action.export:hover { background: rgba(23, 191, 99, 0.1); }
 
 .card-list {
-  max-height: 200px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
 .card-item {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
   padding: 10px 12px;
   background: #22303c;
   border-radius: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
-.card-key {
-  font-family: monospace;
-  color: #fff;
-}
+.card-item:hover { background: #2d3f52; }
+.card-item:hover .copy-hint { opacity: 1; }
 
-.card-days {
-  color: #8899a6;
-  font-size: 13px;
-}
+.card-key { font-family: monospace; color: #fff; flex: 1; }
+.card-days { color: #8899a6; font-size: 13px; }
+.copy-hint { font-size: 11px; color: #1da1f2; opacity: 0; transition: opacity 0.15s; }
 
+/* 筛选栏 */
 .filter-bar {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
 .filter-bar select {
-  padding: 10px 16px;
+  padding: 9px 14px;
   border: 1px solid #38444d;
   border-radius: 8px;
   background: #192734;
@@ -340,15 +563,34 @@ export default {
 }
 
 .btn-refresh {
-  padding: 10px 20px;
+  padding: 9px 18px;
   border: none;
   border-radius: 8px;
-  background: #1da1f2;
+  background: #192734;
+  color: #8899a6;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid #38444d;
+}
+
+.btn-refresh:hover { color: #fff; }
+
+.btn-export {
+  padding: 9px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #17bf63;
   color: #fff;
   font-size: 14px;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
+.btn-export:hover { background: #15a857; }
+.btn-export.txt { background: #5c6bc0; }
+.btn-export.txt:hover { background: #4a59b0; }
+
+/* 表格 */
 .table-container {
   background: #192734;
   border-radius: 12px;
@@ -361,7 +603,7 @@ export default {
 }
 
 .data-table th {
-  padding: 16px;
+  padding: 14px 16px;
   text-align: left;
   font-weight: 600;
   color: #8899a6;
@@ -370,48 +612,48 @@ export default {
 }
 
 .data-table td {
-  padding: 16px;
+  padding: 14px 16px;
   color: #fff;
   border-bottom: 1px solid #38444d;
+  font-size: 14px;
 }
 
-.data-table code {
+.data-table tr:last-child td { border-bottom: none; }
+
+code.copyable {
   font-family: monospace;
   background: #22303c;
   padding: 4px 8px;
   border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
 }
+
+code.copyable:hover { background: #2d3f52; color: #1da1f2; }
+
+.text-muted { color: #8899a6 !important; }
 
 .status-badge {
   display: inline-block;
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 500;
 }
 
-.status-badge.unused {
-  background: rgba(29, 161, 242, 0.2);
-  color: #1da1f2;
-}
-
-.status-badge.used {
-  background: rgba(136, 153, 166, 0.2);
-  color: #8899a6;
-}
+.status-badge.unused { background: rgba(29, 161, 242, 0.15); color: #1da1f2; }
+.status-badge.used { background: rgba(136, 153, 166, 0.15); color: #8899a6; }
 
 .btn-small {
-  padding: 6px 12px;
+  padding: 5px 10px;
   border: none;
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
 }
 
-.btn-danger {
-  background: #e0245e;
-  color: #fff;
-}
+.btn-danger { background: #e0245e; color: #fff; }
+.btn-danger:hover { background: #c01e52; }
 
 .empty-text {
   text-align: center;
@@ -419,11 +661,49 @@ export default {
   padding: 40px !important;
 }
 
-.stats-bar {
+/* 分页 */
+.pagination {
   display: flex;
-  gap: 24px;
-  margin-top: 16px;
-  font-size: 14px;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
   color: #8899a6;
+  font-size: 14px;
+}
+
+.pagination button {
+  padding: 7px 16px;
+  border: 1px solid #38444d;
+  border-radius: 8px;
+  background: #192734;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination button:not(:disabled):hover {
+  background: #22303c;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 9999;
+  backdrop-filter: blur(4px);
 }
 </style>
