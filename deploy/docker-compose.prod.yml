@@ -1,0 +1,26 @@
+services:
+  backend:
+    image: registry.cn-hangzhou.aliyuncs.com/liangjiang-tools/liangjiang-tools:backend-latest
+    container_name: ai-step-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../.env
+    networks:
+      - ai-step-network
+
+  frontend:
+    image: registry.cn-hangzhou.aliyuncs.com/liangjiang-tools/liangjiang-tools:frontend-latest
+    container_name: ai-step-frontend
+    restart: unless-stopped
+    ports:
+      - "8001:80"
+    depends_on:
+      - backend
+    networks:
+      - ai-step-network
+
+networks:
+  ai-step-network:
+    driver: bridge
