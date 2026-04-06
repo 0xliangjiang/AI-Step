@@ -21,8 +21,8 @@ Page({
     showLoginModal: false,
     loginLoading: false,
     loginBenefits: [
-      { icon: '🏃', text: '记录运动数据到微信运动' },
-      { icon: '📊', text: '查看历史运动记录' },
+      { icon: '🏃', text: '智能管理健康数据' },
+      { icon: '📊', text: '查看运动历史趋势' },
       { icon: '🎯', text: '个性化运动建议' }
     ]
   },

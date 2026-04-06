@@ -170,7 +170,7 @@ Page({
     this.setData({
       messages: [{
         role: 'assistant',
-        content: '您好，欢迎使用运动记录。\n\n您可以在这里：\n• 记录运动数据\n• 查询今日步数\n• 查看运动建议\n• 制定运动计划\n• 分享运动到微信运动\n\n分享运动示例：\n• 分享跑步5公里\n• 记录游泳30分钟\n• 上传跳绳100个\n\n请输入您的需求。'
+        content: '您好，欢迎使用运动助手。\n\n您可以在这里：\n• 记录运动数据\n• 查看健康趋势\n• 获取运动建议\n• 制定运动计划\n• 同步运动数据\n\n同步示例：\n• 同步跑步5公里\n• 记录游泳30分钟\n• 记录跳绳100个\n\n请输入您的需求。'
       }]
     })
   },
@@ -262,7 +262,7 @@ Page({
 
       this.scrollToBottom()
 
-      // 检测刷步成功，自动弹出分享弹窗
+      // 检测数据同步成功，自动弹出弹窗
       this.checkBrushSuccess(res.reply, res.function_result)
 
     } catch (e) {
@@ -320,9 +320,9 @@ Page({
     })
   },
 
-  // 检测刷步成功
+  // 检测数据同步完成
   checkBrushSuccess(reply, functionResult) {
-    // 从 function_result 获取步数
+    // 从 function_result 获取同步数据
     let steps = 0
 
     if (functionResult && functionResult.steps) {

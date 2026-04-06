@@ -37,21 +37,21 @@
           <text class="welcome-logo">记</text>
         </view>
         <view class="welcome-title">运动记录助手</view>
-        <view class="welcome-desc">我可以帮你记录运动数据、查询步数、制定健身计划</view>
+        <view class="welcome-desc">我可以帮你记录运动数据、查看健康趋势、制定健身计划</view>
       </view>
 
       <view class="suggest-list">
-        <view class="suggest-item" bindtap="quickAction" data-action="帮我记录今天的运动数据">
+        <view class="suggest-item" bindtap="quickAction" data-action="帮我记录今天的运动">
           <view class="suggest-icon-wrap">
             <text class="suggest-icon">✅</text>
           </view>
           <view class="suggest-text">运动打卡</view>
         </view>
-        <view class="suggest-item" bindtap="quickAction" data-action="查询我今天的步数">
+        <view class="suggest-item" bindtap="quickAction" data-action="查看今日健康数据">
           <view class="suggest-icon-wrap">
             <text class="suggest-icon">👟</text>
           </view>
-          <view class="suggest-text">步数查询</view>
+          <view class="suggest-text">健康数据</view>
         </view>
         <view class="suggest-item" bindtap="quickAction" data-action="帮我制定一个健身计划">
           <view class="suggest-icon-wrap">
@@ -122,11 +122,11 @@
       <view class="quick-list">
         <view class="quick-item" bindtap="quickAction" data-action="今天运动打卡">
           <text class="quick-icon">✅</text>
-          <text>打卡</text>
+          <text>记录</text>
         </view>
-        <view class="quick-item" bindtap="quickAction" data-action="查询今日步数">
+        <view class="quick-item" bindtap="quickAction" data-action="查看今日健康数据">
           <text class="quick-icon">👟</text>
-          <text>步数</text>
+          <text>健康</text>
         </view>
         <view class="quick-item" bindtap="quickAction" data-action="推荐健身动作">
           <text class="quick-icon">💪</text>
@@ -171,7 +171,7 @@
     <view class="modal-box" catchtap>
       <view class="modal-header">
         <text class="modal-icon">🏃</text>
-        <text class="modal-title">分享到微信运动</text>
+        <text class="modal-title">同步运动数据</text>
       </view>
 
       <view class="modal-form">
