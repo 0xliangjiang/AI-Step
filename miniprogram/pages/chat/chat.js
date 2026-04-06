@@ -204,10 +204,19 @@ Page({
     const text = this.data.inputText.trim()
     if (!text || this.data.loading) return
 
-    // 检查是否是分享运动的自然语言
+    // 检查是否是"分享运动状态"等模糊分享意图（无具体数据）
+    const generalShareKeywords = ['分享运动状态', '分享运动', '分享到微信运动', '上传运动', '同步运动']
+    if (generalShareKeywords.some(k => text.includes(k))) {
+      this.openShareModal()
+      this.setData({ inputText: '' })
+      return
+    }
+
+    // 检查是否是分享运动的自然语言（含具体数据）
     const sportParsed = parseSportText(text)
     if (sportParsed) {
       console.log('解析到运动分享请求:', sportParsed)
+      this.setData({ inputText: '' })
       // 直接弹出分享弹窗
       this.showShareModalFromParsed(sportParsed)
       return
@@ -298,6 +307,16 @@ Page({
       inputValue: String(value),
       selectedSportIndex: sportIndex,
       selectedUnitIndex: unitIndex
+    })
+  },
+
+  // 快捷按钮：直接弹出分享弹窗
+  openShareModal() {
+    this.setData({
+      showShareModal: true,
+      inputValue: '',
+      selectedSportIndex: 0,
+      selectedUnitIndex: 0
     })
   },
 
