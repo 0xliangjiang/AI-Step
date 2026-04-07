@@ -8,8 +8,8 @@ set -e
 REGISTRY="registry.cn-hangzhou.aliyuncs.com/liangjiang-tools/liangjiang-tools"
 VERSION=${1:-latest}
 
-echo ">>> 登录阿里云镜像仓库..."
-docker login --username=良匠爱生活 registry.cn-hangzhou.aliyuncs.com
+# echo ">>> 登录阿里云镜像仓库..."
+# docker login --username=良匠爱生活 registry.cn-hangzhou.aliyuncs.com
 
 # -------- 后端 --------
 echo ">>> 构建后端镜像..."
