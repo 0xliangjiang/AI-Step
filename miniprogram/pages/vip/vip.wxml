@@ -6,8 +6,17 @@
     <view class="desc">把运动记录和同步体验升级</view>
   </view>
 
+  <view class="packages-tip" wx:if="{{usingCachedPackages}}">
+    套餐正在刷新，当前先展示上次可用内容。
+  </view>
+
+  <view class="packages-error" wx:if="{{loadError}}">
+    <text>{{loadError}}</text>
+    <button class="retry-btn" bindtap="refreshPackages">重新加载</button>
+  </view>
+
   <!-- 套餐列表 -->
-  <view class="packages">
+  <view class="packages" wx:if="{{packages.length}}">
     <view
       class="package-item {{selectedPackage && selectedPackage.id === item.id ? 'selected' : ''}}"
       wx:for="{{packages}}"
@@ -23,6 +32,12 @@
       </view>
       <view class="check-icon" wx:if="{{selectedPackage && selectedPackage.id === item.id}}">✓</view>
     </view>
+  </view>
+
+  <view class="packages-empty" wx:elif="{{!loading}}">
+    <view class="empty-title">套餐暂时没加载出来</view>
+    <view class="empty-desc">可以重新加载一次，稍后再回来看看。</view>
+    <button class="retry-btn" bindtap="refreshPackages">重新加载</button>
   </view>
 
   <!-- 权益说明 -->

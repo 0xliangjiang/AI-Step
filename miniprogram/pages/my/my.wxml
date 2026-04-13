@@ -68,11 +68,11 @@
       <view class="stat-block">
         <view class="stat-icon">⏱</view>
         <view class="stat-info">
-          <view class="stat-value">{{isVip ? remainingDays + '天' : '体验中'}}</view>
+          <view class="stat-value">{{remainingDays > 0 ? remainingDays + '天' : '已结束'}}</view>
           <view class="stat-label">会员状态</view>
         </view>
       </view>
-      <view class="stat-block" wx:if="{{isVip}}">
+      <view class="stat-block" wx:if="{{remainingDays > 0}}">
         <view class="stat-icon">📅</view>
         <view class="stat-info">
           <view class="stat-value small">{{vipExpireAt}}</view>
@@ -116,7 +116,7 @@
           <view class="vip-desc">{{isVip ? '感谢您的支持，享受专属权益' : '开通会员查看更多功能'}}</view>
         </view>
         <view class="vip-badge">
-          <text class="badge-num">{{isVip ? remainingDays : '0'}}</text>
+          <text class="badge-num">{{remainingDays}}</text>
           <text class="badge-unit">天</text>
         </view>
       </view>
@@ -134,7 +134,7 @@
         </view>
         <view class="detail-item">
           <text class="detail-label">剩余天数</text>
-          <text class="detail-value highlight">{{remainingDays}} 天</text>
+          <text class="detail-value highlight">{{remainingDays > 0 ? remainingDays + ' 天' : '已结束'}}</text>
         </view>
       </view>
     </view>

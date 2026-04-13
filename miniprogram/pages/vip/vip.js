@@ -1,12 +1,16 @@
 // pages/vip/vip.js
 const api = require('../../utils/api')
 
+const PACKAGE_CACHE_KEY = 'vipPackagesCache'
+
 Page({
   data: {
     packages: [],
     selectedPackage: null,
     loading: true,
-    paying: false
+    paying: false,
+    usingCachedPackages: false,
+    loadError: ''
   },
 
   onLoad() {
@@ -18,18 +22,71 @@ Page({
   },
 
   async loadPackages() {
+    if (this.loadingPackagesPromise) {
+      return this.loadingPackagesPromise
+    }
+
+    const cachedPackages = wx.getStorageSync(PACKAGE_CACHE_KEY) || []
+    if (cachedPackages.length && !this.data.packages.length) {
+      this.applyPackages(cachedPackages, true)
+    } else {
+      this.setData({ loading: true, loadError: '' })
+    }
+
+    this.loadingPackagesPromise = this.fetchPackages(cachedPackages)
+    return this.loadingPackagesPromise
+  },
+
+  async fetchPackages(cachedPackages) {
     try {
       const res = await api.request('/packages', 'GET', {})
-      if (res.success) {
-        this.setData({
-          packages: res.data || [],
-          loading: false
-        })
+      if (res.success && Array.isArray(res.data) && res.data.length) {
+        const packages = res.data
+        this.applyPackages(packages, false)
+        wx.setStorageSync(PACKAGE_CACHE_KEY, packages)
+        return
       }
+
+      throw new Error(res.message || '套餐暂时不可用')
     } catch (e) {
       console.error('加载套餐失败', e)
-      this.setData({ loading: false })
+      if (cachedPackages.length) {
+        this.applyPackages(cachedPackages, true)
+        this.setData({
+          loadError: '套餐暂时没加载出来，先展示上次可用内容。'
+        })
+        return
+      }
+
+      this.setData({
+        loading: false,
+        loadError: '套餐暂时没加载出来，请重新加载。'
+      })
+    } finally {
+      this.loadingPackagesPromise = null
     }
+  },
+
+  applyPackages(packages, usingCachedPackages) {
+    const selectedPackageId = this.data.selectedPackage && this.data.selectedPackage.id
+    const selectedPackage = packages.find((pkg) => pkg.id === selectedPackageId) || packages[0] || null
+
+    this.setData({
+      packages,
+      selectedPackage,
+      loading: false,
+      usingCachedPackages,
+      loadError: usingCachedPackages ? this.data.loadError : ''
+    })
+  },
+
+  refreshPackages() {
+    this.setData({
+      loading: true,
+      loadError: ''
+    })
+    this.loadingPackagesPromise = null
+    this.loadPackages()
   },
 
   selectPackage(e) {

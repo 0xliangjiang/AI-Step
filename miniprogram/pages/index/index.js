@@ -134,7 +134,9 @@ Page({
     const now = new Date()
     const expireAt = parseDateTime(data.vip_expire_at)
     const isVip = expireAt && expireAt > now
-    const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
+    const remainingDays = typeof data.remaining_days === 'number'
+      ? data.remaining_days
+      : (isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0)
     const userProfile = mergeUserProfile(this.data.userProfile, data)
     const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
     const displayAvatarUrl = resolveDisplayAvatarUrl(userProfile.avatarUrl)

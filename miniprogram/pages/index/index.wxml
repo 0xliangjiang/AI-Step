@@ -42,7 +42,7 @@
       <view class="status-item">
         <text class="status-icon">📅</text>
         <view class="status-text">
-          <text class="status-value">{{isVip ? remainingDays + '天' : '体验'}}</text>
+          <text class="status-value">{{remainingDays > 0 ? remainingDays + '天' : '已结束'}}</text>
           <text class="status-label">剩余时间</text>
         </view>
       </view>

@@ -36,6 +36,23 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn('继续完善资料', my_wxml)
         self.assertIn('补充头像和昵称后，首页展示会更完整。', my_wxml)
 
+    def test_homepage_trial_days_and_vip_packages_have_stable_fallbacks(self):
+        index_js = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.js').read_text(encoding='utf-8')
+        index_wxml = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.wxml').read_text(encoding='utf-8')
+        vip_js = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.js').read_text(encoding='utf-8')
+        vip_wxml = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxml').read_text(encoding='utf-8')
+
+        self.assertIn("const remainingDays = typeof data.remaining_days === 'number'", index_js)
+        self.assertIn("remainingDays > 0 ? remainingDays + '天' : '已结束'", index_wxml)
+
+        self.assertIn("const PACKAGE_CACHE_KEY = 'vipPackagesCache'", vip_js)
+        self.assertIn('wx.getStorageSync(PACKAGE_CACHE_KEY)', vip_js)
+        self.assertIn('wx.setStorageSync(PACKAGE_CACHE_KEY, packages)', vip_js)
+        self.assertIn('usingCachedPackages', vip_js)
+        self.assertIn('refreshPackages()', vip_js)
+        self.assertIn('套餐暂时没加载出来', vip_wxml)
+        self.assertIn('重新加载', vip_wxml)
+
 
 if __name__ == '__main__':
     unittest.main()
