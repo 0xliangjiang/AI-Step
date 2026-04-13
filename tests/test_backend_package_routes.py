@@ -11,6 +11,7 @@ class BackendPackageRouteTests(unittest.TestCase):
 
         self.assertIn('@app.get("/api/packages", response_model=PackageResponse)', main_py)
         self.assertIn('@app.get("/api/vip/packages", response_model=PackageResponse)', main_py)
+        self.assertIn('@app.get("/api/membership/options", response_model=PackageResponse)', main_py)
 
 
 if __name__ == '__main__':

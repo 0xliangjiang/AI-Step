@@ -2,7 +2,7 @@
 const api = require('../../utils/api')
 
 const PACKAGE_CACHE_KEY = 'vipPackagesCache'
-const PACKAGE_ENDPOINTS = ['/vip/packages', '/packages']
+const PACKAGE_ENDPOINTS = ['/membership/options', '/vip/packages', '/packages']
 
 Page({
   data: {

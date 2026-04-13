@@ -530,6 +530,12 @@ async def get_vip_packages():
     return await _build_package_response()
 
 
+@app.get("/api/membership/options", response_model=PackageResponse)
+async def get_membership_options():
+    """获取会员套餐列表（避开线上被拦截的历史路径）"""
+    return await _build_package_response()
+
+
 @app.post("/api/pay/create", response_model=OrderResponse)
 async def create_payment_order(request: CreateOrderRequest):
     """创建支付订单"""

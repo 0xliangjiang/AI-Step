@@ -46,7 +46,7 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn("remainingDays > 0 ? remainingDays + '天' : '已结束'", index_wxml)
 
         self.assertIn("const PACKAGE_CACHE_KEY = 'vipPackagesCache'", vip_js)
-        self.assertIn("const PACKAGE_ENDPOINTS = ['/vip/packages', '/packages']", vip_js)
+        self.assertIn("const PACKAGE_ENDPOINTS = ['/membership/options', '/vip/packages', '/packages']", vip_js)
         self.assertIn('wx.getStorageSync(PACKAGE_CACHE_KEY)', vip_js)
         self.assertIn('wx.setStorageSync(PACKAGE_CACHE_KEY, packages)', vip_js)
         self.assertIn('usingCachedPackages', vip_js)
