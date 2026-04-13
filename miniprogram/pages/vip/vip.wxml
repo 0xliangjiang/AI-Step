@@ -16,20 +16,36 @@
   </view>
 
   <!-- 套餐列表 -->
-  <view class="packages" wx:if="{{packages.length}}">
+  <view class="package-spotlight" wx:if="{{packages.length}}">
+    <view class="spotlight-caption">推荐方案</view>
     <view
-      class="package-item {{selectedPackage && selectedPackage.id === item.id ? 'selected' : ''}}"
+      class="package-hero {{selectedPackage && selectedPackage.id === item.id ? 'selected' : ''}}"
       wx:for="{{packages}}"
       wx:key="id"
       bindtap="selectPackage"
       data-id="{{item.id}}"
     >
-      <view class="package-name">{{item.name}}</view>
-      <view class="package-days">{{item.days}}天</view>
-      <view class="package-price">
-        <text class="price">¥{{item.price / 100}}</text>
-        <text class="original" wx:if="{{item.original_price}}">¥{{item.original_price / 100}}</text>
+      <view class="package-headline">
+        <view class="package-pill">主推</view>
+        <view class="package-select-chip">{{selectedPackage && selectedPackage.id === item.id ? '已选方案' : '点按选择'}}</view>
       </view>
+      <view class="package-main">
+        <view class="package-name">{{item.name}}</view>
+        <view class="package-days">{{item.days}}天连续记录周期</view>
+      </view>
+      <view class="package-price-row">
+        <view class="package-price">
+          <text class="price-symbol">¥</text>
+          <text class="price">{{item.price / 100}}</text>
+        </view>
+        <text class="original" wx:if="{{item.original_price}}">原价 ¥{{item.original_price / 100}}</text>
+      </view>
+      <view class="package-meta-row">
+        <view class="package-meta-pill">随时续费</view>
+        <view class="package-meta-pill">同步更稳</view>
+        <view class="package-meta-pill">记录复盘</view>
+      </view>
+      <view class="package-price-note">适合想把运动记录稳定保留下来的日常使用节奏。</view>
       <view class="check-icon" wx:if="{{selectedPackage && selectedPackage.id === item.id}}">✓</view>
     </view>
   </view>
@@ -59,6 +75,10 @@
 
   <!-- 底部按钮 -->
   <view class="footer">
+    <view class="footer-summary" wx:if="{{selectedPackage}}">
+      <text class="footer-summary-label">已选方案</text>
+      <text class="footer-summary-value">{{selectedPackage.name}} · {{selectedPackage.days}}天</text>
+    </view>
     <button class="pay-btn" bindtap="createOrder" disabled="{{paying || !selectedPackage}}">
       {{paying ? '开通中...' : selectedPackage ? '立即开通 ¥' + (selectedPackage.price / 100) : '先选一个会员套餐'}}
     </button>

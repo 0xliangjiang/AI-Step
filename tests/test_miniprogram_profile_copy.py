@@ -45,6 +45,21 @@ class MiniProgramProfileCopyTests(unittest.TestCase):
         self.assertIn('不限次查看运动复盘', vip_wxml)
         self.assertIn('专属记录参考与同步说明', vip_wxml)
 
+    def test_vip_page_uses_featured_mobile_card_layout(self):
+        vip_wxml = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxml').read_text(encoding='utf-8')
+        vip_wxss = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxss').read_text(encoding='utf-8')
+
+        self.assertIn('package-spotlight', vip_wxml)
+        self.assertIn('package-hero', vip_wxml)
+        self.assertIn('package-meta-row', vip_wxml)
+        self.assertIn('package-price-note', vip_wxml)
+        self.assertIn('footer-summary', vip_wxml)
+        self.assertIn('.package-spotlight', vip_wxss)
+        self.assertIn('.package-hero', vip_wxss)
+        self.assertIn('.package-price-note', vip_wxss)
+        self.assertIn('.footer-summary', vip_wxss)
+        self.assertIn('@media (max-width: 360px)', vip_wxss)
+
 
 if __name__ == '__main__':
     unittest.main()
