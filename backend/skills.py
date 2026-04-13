@@ -482,6 +482,21 @@ class StepSkills:
             return {'success': False, 'message': '用户不存在'}
         return self._get_bindqr_for_user_dict(user, auto_trigger=auto_trigger)
 
+    def _cache_user_tokens_best_effort(self, user_key: str, login_token: str, app_token: str) -> None:
+        """缓存用户 token；失败只记录日志，不影响主流程。"""
+        if not user_key or not login_token or not app_token:
+            return
+
+        try:
+            with get_db_session() as db:
+                db_user = db.query(User).filter(User.user_key == user_key).first()
+                if db_user:
+                    db_user.login_token = login_token
+                    db_user.app_token = app_token
+                    db_user.token_updated_at = datetime.now()
+        except Exception as e:
+            self._log(f"缓存token失败 user_key={user_key}: {e}")
+
     def _get_bindqr_for_user_dict(self, user: Dict[str, Any], auto_trigger: bool = False) -> dict:
         """为已注册用户绑定手环并获取微信绑定二维码（使用字典参数）"""
         try:
@@ -539,13 +554,8 @@ class StepSkills:
                 api.userid = login_result.get('userid')
                 api.login_token = login_result.get('login_token')
                 api.app_token = login_result.get('app_token')
-                # 登录成功后缓存token，减少后续重复登录
-                with get_db_session() as db:
-                    db_user = db.query(User).filter(User.user_key == user_key).first()
-                    if db_user and api.login_token and api.app_token:
-                        db_user.login_token = api.login_token
-                        db_user.app_token = api.app_token
-                        db_user.token_updated_at = datetime.now()
+                # 登录成功后缓存token，减少后续重复登录；缓存失败不应阻断二维码返回。
+                self._cache_user_tokens_best_effort(user_key, api.login_token, api.app_token)
 
             bind_msg = ""
 
