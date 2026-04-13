@@ -77,7 +77,6 @@ class StepScheduler:
     def __init__(self):
         self.running = False
         self.thread = None
-        self.interval = 60  # 检查间隔（秒）
 
     def log(self, msg: str):
         if APP_DEBUG:
@@ -107,7 +106,18 @@ class StepScheduler:
             except Exception as e:
                 self.log(f"执行异常: {e}")
 
-            time.sleep(self.interval)
+            wait_seconds = self._seconds_until_next_scan()
+            self.log(f"下次扫描将在 {int(wait_seconds)} 秒后执行")
+            sleep_until = time.time() + wait_seconds
+            while self.running and time.time() < sleep_until:
+                time.sleep(min(1, max(0, sleep_until - time.time())))
+
+    def _seconds_until_next_scan(self, now: Optional[datetime] = None) -> int:
+        """计算距离下一个整点扫描还有多少秒。"""
+        now = now or get_beijing_time()
+        next_scan_at = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        wait_seconds = int((next_scan_at - now).total_seconds())
+        return max(wait_seconds, 1)
 
     def _check_and_execute(self):
         """检查并执行定时任务"""
@@ -165,15 +175,17 @@ class StepScheduler:
         # 计算基础步数（按总时段平均分配）
         base_steps_per_hour = math.ceil(task.target_steps / total_hours)
 
-        # 确定本次要执行的时段：执行当前应处于的时段
+        # 每小时扫描一次时，只执行一个时段。
+        # 如果前一个应执行时段错过了，优先补最早漏掉的那个。
         slot_to_execute = task.current_step_index
 
-        # 如果落后于当前时段，直接跳到当前时段，跳过已错过的时段
-        # 避免逐分钟追赶导致短时间内快速刷满步数
+        execution_mode = "正常执行"
         if slot_to_execute < expected_index:
-            self.log(f"任务 {task.user_key}: 跳过已错过时段 {slot_to_execute + 1}-{expected_index}，直接执行当前时段 {expected_index + 1}")
-            slot_to_execute = expected_index
-            task.current_step_index = expected_index
+            execution_mode = "补执行"
+            self.log(
+                f"任务 {task.user_key}: 检测到漏执行时段，"
+                f"本轮补执行时段 {slot_to_execute + 1}，当前已到时段 {expected_index + 1}"
+            )
 
         # 计算本次应该达到的累计步数
         # 最后一个时段补齐剩余步数，其他时段按平均值
@@ -191,8 +203,10 @@ class StepScheduler:
             return
 
         steps_to_add = target_current_steps - task.current_steps
-        self.log(f"任务 {task.user_key}: 时段 {slot_to_execute + 1}/{total_hours}, "
-                f"当前 {task.current_steps} → 目标 {target_current_steps}")
+        self.log(
+            f"任务 {task.user_key}: {execution_mode}，时段 {slot_to_execute + 1}/{total_hours}, "
+            f"当前 {task.current_steps} → 目标 {target_current_steps}"
+        )
 
         # 执行刷步（传入累计目标值，不是增量）
         task.last_attempt_at = now
