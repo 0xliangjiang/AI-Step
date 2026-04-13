@@ -186,39 +186,65 @@ class StepSkills:
         with get_db_session() as db:
             db.merge(user)
 
-    def _get_available_account(self) -> Optional[User]:
-        """从账户池获取一个可用账户（user_key 为空）"""
-        with get_db_session() as db:
-            return db.query(User).filter(User.user_key.is_(None)).first()
+    def _user_to_snapshot(self, user: User) -> Dict[str, Any]:
+        """将 ORM 用户对象转换为脱离 session 也可安全使用的快照。"""
+        return {
+            'id': user.id,
+            'user_key': user.user_key,
+            'zepp_email': user.zepp_email,
+            'zepp_password': user.zepp_password,
+            'zepp_userid': user.zepp_userid,
+            'bind_status': user.bind_status,
+            'bind_button_triggered': user.bind_button_triggered,
+            'vip_expire_at': user.vip_expire_at,
+            'login_token': user.login_token,
+            'app_token': user.app_token,
+            'token_updated_at': user.token_updated_at,
+        }
 
-    def _assign_account_to_user(self, user_key: str, account: User) -> dict:
+    def _get_available_account(self) -> Optional[Dict[str, Any]]:
+        """从账户池获取一个可用账户快照（user_key 为空）。"""
+        with get_db_session() as db:
+            account = db.query(User).filter(User.user_key.is_(None)).first()
+            if not account:
+                return None
+            return self._user_to_snapshot(account)
+
+    def _assign_account_to_user(self, user_key: str, account: Dict[str, Any]) -> dict:
         """将账户分配给用户"""
         try:
             with get_db_session() as db:
+                account_id = account.get('id')
+                db_account = db.query(User).filter(
+                    User.id == account_id,
+                    User.user_key.is_(None)
+                ).first()
+                if not db_account:
+                    return {'success': False, 'message': '账户池中的账号已被分配，请重试'}
+
                 # 检查用户是否已存在
                 existing_user = db.query(User).filter(User.user_key == user_key).first()
 
                 if existing_user:
                     # 用户已存在，将账户信息复制到现有用户
-                    existing_user.zepp_email = account.zepp_email
-                    existing_user.zepp_password = account.zepp_password
-                    existing_user.zepp_userid = account.zepp_userid
-                    existing_user.bind_status = account.bind_status
+                    existing_user.zepp_email = db_account.zepp_email
+                    existing_user.zepp_password = db_account.zepp_password
+                    existing_user.zepp_userid = db_account.zepp_userid
+                    existing_user.bind_status = db_account.bind_status
                     # 删除账户池中的记录
-                    db.delete(account)
-                    self._log(f"已将账户 {account.zepp_email} 绑定到现有用户 {user_key}")
+                    db.delete(db_account)
+                    self._log(f"已将账户 {db_account.zepp_email} 绑定到现有用户 {user_key}")
                     db.flush()  # 确保删除操作生效
 
                     # 登录成功后触发一次后台绑定
                     return self._get_bindqr_for_user(existing_user, auto_trigger=True)
                 else:
                     # 用户不存在，直接更新账户的 user_key
-                    account.user_key = user_key
-                    db.merge(account)
-                    self._log(f"已将账户 {account.zepp_email} 分配给新用户 {user_key}")
+                    db_account.user_key = user_key
+                    self._log(f"已将账户 {db_account.zepp_email} 分配给新用户 {user_key}")
 
                     # 登录成功后触发一次后台绑定
-                    return self._get_bindqr_for_user(account, auto_trigger=True)
+                    return self._get_bindqr_for_user(db_account, auto_trigger=True)
         except Exception as e:
             self._log(f"分配账户失败: {e}")
             return {'success': False, 'message': '分配账户失败，请重试'}
@@ -258,7 +284,7 @@ class StepSkills:
         # 尝试从账户池中获取一个可用账户
         available_account = self._get_available_account()
         if available_account:
-            self._log(f"从账户池分配账户: {available_account.zepp_email}")
+            self._log(f"从账户池分配账户: {available_account.get('zepp_email')}")
             return self._assign_account_to_user(user_key, available_account)
 
         # 账户池中没有可用账户，开始新注册流程

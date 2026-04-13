@@ -6,8 +6,7 @@ services:
       dockerfile: backend/Dockerfile
     container_name: ai-step-backend
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    network_mode: host
     environment:
       - MYSQL_HOST=${MYSQL_HOST}
       - MYSQL_PORT=${MYSQL_PORT:-3306}
@@ -38,8 +37,6 @@ services:
       - CAPTCHA_PENDING_EXPIRE=${CAPTCHA_PENDING_EXPIRE:-300}
       - APP_DEBUG=${APP_DEBUG:-false}
       - USE_PROXY_MODE=${USE_PROXY_MODE:-true}
-    networks:
-      - ai-step-network
 
   # 前端服务
   frontend:
@@ -52,6 +49,8 @@ services:
       - "8001:80"
     depends_on:
       - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - ai-step-network
 

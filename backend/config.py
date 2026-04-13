@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from sqlalchemy.engine import URL
 
 # 优先加载项目根目录 .env；不存在时尝试 backend/.env
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -19,7 +20,26 @@ MYSQL_USER = os.getenv("MYSQL_USER", "root")
 MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "ai_step")
 
-DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+
+def build_database_url(host: str, port: int, user: str, password: str, database: str) -> URL:
+    """安全构造数据库连接 URL，避免密码中的特殊字符破坏 DSN。"""
+    return URL.create(
+        "mysql+pymysql",
+        username=user,
+        password=password,
+        host=host,
+        port=port,
+        database=database,
+    )
+
+
+DATABASE_URL = build_database_url(
+    host=MYSQL_HOST,
+    port=MYSQL_PORT,
+    user=MYSQL_USER,
+    password=MYSQL_PASSWORD,
+    database=MYSQL_DATABASE,
+)
 
 # AI 模型配置
 AI_PROVIDER = os.getenv("AI_PROVIDER", "minimax")  # minimax / glm
