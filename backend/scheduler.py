@@ -147,10 +147,7 @@ class StepScheduler:
 
         # 检查是否是新的一天，重置进度
         if task.last_run_date != current_date:
-            task.current_steps = 0
-            task.current_step_index = 0
-            task.last_run_date = current_date
-            self.log(f"任务 {task.user_key} 新的一天，重置进度")
+            self._reset_task_for_new_day(task, current_date)
 
         # 检查是否在执行时间范围内
         if not (task.start_hour <= current_hour < task.end_hour):
@@ -198,25 +195,43 @@ class StepScheduler:
                 f"当前 {task.current_steps} → 目标 {target_current_steps}")
 
         # 执行刷步（传入累计目标值，不是增量）
-        success = self._execute_brush_step(task.user_key, target_current_steps)
+        task.last_attempt_at = now
+        result = self._execute_brush_step(task.user_key, target_current_steps)
 
-        if success:
+        if result.get("success"):
             task.current_steps = target_current_steps
             task.current_step_index = slot_to_execute + 1
-            task.last_run_at = get_beijing_time()
+            task.last_run_at = now
+            task.last_success_at = now
+            task.last_error = ""
+            task.last_error_type = ""
+            task.consecutive_failures = 0
             self.log(f"任务 {task.user_key} 刷步成功: 已刷到 {target_current_steps} 步")
         else:
-            self.log(f"任务 {task.user_key} 刷步失败")
+            task.last_error = result.get("message", "未知错误")
+            task.last_error_type = result.get("error_type", "brush_step_failed")
+            task.consecutive_failures = (task.consecutive_failures or 0) + 1
+            self.log(f"任务 {task.user_key} 刷步失败: {task.last_error}")
 
-    def _execute_brush_step(self, user_key: str, target_steps: int) -> bool:
+    def _reset_task_for_new_day(self, task: ScheduledTask, current_date: str):
+        """新的一天重置任务进度与失败状态，避免前一天状态干扰当天执行。"""
+        task.current_steps = 0
+        task.current_step_index = 0
+        task.last_run_date = current_date
+        task.last_error = ""
+        task.last_error_type = ""
+        task.consecutive_failures = 0
+        self.log(f"任务 {task.user_key} 新的一天，重置进度")
+
+    def _execute_brush_step(self, user_key: str, target_steps: int) -> Dict[str, Any]:
         """执行刷步（设置目标步数，非增量）"""
         try:
             with get_db_session() as db:
                 user = db.query(User).filter(User.user_key == user_key).first()
                 if not user or not user.zepp_email:
-                    return False
+                    return {"success": False, "message": "用户未注册设备", "error_type": "user_missing"}
                 if USE_PROXY_MODE and user.bind_status != 1:
-                    return False
+                    return {"success": False, "message": "用户未完成绑定", "error_type": "bind_status"}
 
                 if USE_PROXY_MODE:
                     api = ZeppAPI(
@@ -236,10 +251,16 @@ class StepScheduler:
                         use_proxy=False
                     )
 
-                return result.get("success", False)
+                if result.get("success", False):
+                    return {"success": True, "message": result.get("message", "ok")}
+                return {
+                    "success": False,
+                    "message": result.get("message", "刷步失败"),
+                    "error_type": "api_error"
+                }
         except Exception as e:
             self.log(f"刷步异常: {e}")
-            return False
+            return {"success": False, "message": str(e), "error_type": "exception"}
 
     # ==================== 任务管理方法 ====================
 

@@ -28,7 +28,8 @@
             <th>时间段</th>
             <th>当前进度</th>
             <th>状态</th>
-            <th>上次执行</th>
+            <th>执行概览</th>
+            <th>诊断信息</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -53,7 +54,21 @@
                 {{ getStatusText(task.status) }}
               </span>
             </td>
-            <td>{{ task.last_run_at || '-' }}</td>
+            <td>
+              <div class="meta-stack">
+                <span>上次执行：{{ task.last_run_at || '-' }}</span>
+                <span>上次成功：{{ task.last_success_at || '-' }}</span>
+                <span>上次尝试：{{ task.last_attempt_at || '-' }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="meta-stack">
+                <span>连续失败：{{ task.consecutive_failures || 0 }}</span>
+                <span :class="['error-text', { muted: !task.last_error }]">
+                  最近错误：{{ task.last_error || '无' }}
+                </span>
+              </div>
+            </td>
             <td>
               <div class="action-btns">
                 <button v-if="task.status === 'active'" class="btn-small btn-warning" @click="pauseTask(task)">
@@ -72,7 +87,7 @@
             </td>
           </tr>
           <tr v-if="tasks.length === 0">
-            <td colspan="7" class="empty-text">暂无数据</td>
+            <td colspan="8" class="empty-text">暂无数据</td>
           </tr>
         </tbody>
       </table>
@@ -323,6 +338,25 @@ export default {
 .action-btns {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.meta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #8899a6;
+}
+
+.error-text {
+  color: #ffb3c1;
+  max-width: 280px;
+  word-break: break-word;
+}
+
+.error-text.muted {
+  color: #8899a6;
 }
 
 .btn-small {

@@ -105,6 +105,11 @@ class ScheduledTask(Base):
     current_step_index = Column(Integer, default=0, comment="当前执行到第几个时间段")
     last_run_at = Column(DateTime, comment="上次执行时间")
     last_run_date = Column(String(10), comment="上次执行日期 YYYY-MM-DD")
+    last_attempt_at = Column(DateTime, comment="上次尝试执行时间")
+    last_success_at = Column(DateTime, comment="上次成功执行时间")
+    last_error = Column(Text, comment="最近一次失败原因")
+    last_error_type = Column(String(50), comment="最近一次失败类型")
+    consecutive_failures = Column(Integer, default=0, comment="连续失败次数")
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -120,6 +125,11 @@ class ScheduledTask(Base):
             "current_step_index": self.current_step_index,
             "last_run_at": self.last_run_at.strftime("%Y-%m-%d %H:%M:%S") if self.last_run_at else None,
             "last_run_date": self.last_run_date,
+            "last_attempt_at": self.last_attempt_at.strftime("%Y-%m-%d %H:%M:%S") if self.last_attempt_at else None,
+            "last_success_at": self.last_success_at.strftime("%Y-%m-%d %H:%M:%S") if self.last_success_at else None,
+            "last_error": self.last_error,
+            "last_error_type": self.last_error_type,
+            "consecutive_failures": self.consecutive_failures,
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
             "updated_at": self.updated_at.strftime("%Y-%m-%d %H:%M:%S") if self.updated_at else None
         }
@@ -340,6 +350,46 @@ def _ensure_schema_columns():
         with engine.begin() as conn:
             for statement in alter_statements:
                 conn.execute(text(statement))
+
+    if inspector.has_table("scheduled_tasks"):
+        task_columns = {col["name"] for col in inspector.get_columns("scheduled_tasks")}
+        task_alter_statements = []
+
+        if "last_attempt_at" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN last_attempt_at DATETIME "
+                "COMMENT '上次尝试执行时间'"
+            )
+        if "last_success_at" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN last_success_at DATETIME "
+                "COMMENT '上次成功执行时间'"
+            )
+        if "last_error" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN last_error TEXT "
+                "COMMENT '最近一次失败原因'"
+            )
+        if "last_error_type" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN last_error_type VARCHAR(50) "
+                "COMMENT '最近一次失败类型'"
+            )
+        if "consecutive_failures" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN consecutive_failures INT DEFAULT 0 "
+                "COMMENT '连续失败次数'"
+            )
+
+        if task_alter_statements:
+            with engine.begin() as conn:
+                for statement in task_alter_statements:
+                    conn.execute(text(statement))
 
 
 def get_db():
