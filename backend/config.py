@@ -26,7 +26,6 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "minimax")  # minimax / glm
 
 # MiniMax 配置
 MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY", "")
-MINIMAX_GROUP_ID = os.getenv("MINIMAX_GROUP_ID", "")
 
 # GLM 配置
 GLM_API_KEY = os.getenv("GLM_API_KEY", "")

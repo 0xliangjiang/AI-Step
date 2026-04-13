@@ -7,7 +7,7 @@ import traceback
 import requests
 from typing import List, Dict, Any
 from config import (
-    AI_PROVIDER, MINIMAX_API_KEY, MINIMAX_GROUP_ID,
+    AI_PROVIDER, MINIMAX_API_KEY,
     GLM_API_KEY, SYSTEM_PROMPT, STEALTH_PROMPT, ERROR_MESSAGE, APP_DEBUG
 )
 from skills import FUNCTIONS, execute_function, skills
@@ -92,9 +92,47 @@ class AIClient:
                 }
             }
 
+    def _build_provider_error_response(self, provider: str, detail: str) -> Dict[str, Any]:
+        """构建统一的上游异常响应，避免解析异常继续向外冒泡。"""
+        print(f"[AIClient] {provider} invalid response: {detail}")
+        return {
+            "success": False,
+            "reply": ERROR_MESSAGE,
+            "function_result": {
+                "success": False,
+                "message": f"{provider}返回异常: {detail}"
+            }
+        }
+
+    def _extract_first_choice(self, provider: str, response: requests.Response, data: Dict[str, Any]) -> Dict[str, Any]:
+        """校验上游响应并提取首个 choice。"""
+        if response.status_code != 200:
+            return self._build_provider_error_response(
+                provider,
+                f"http_status={response.status_code}, body={data}"
+            )
+
+        base_resp = data.get("base_resp") or {}
+        status_code = base_resp.get("status_code")
+        status_msg = base_resp.get("status_msg")
+        if status_code not in (None, 0):
+            return self._build_provider_error_response(
+                provider,
+                f"status_code={status_code}, status_msg={status_msg or ''}, body={data}"
+            )
+
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices:
+            return self._build_provider_error_response(
+                provider,
+                f"choices={choices}, status_msg={status_msg or ''}, body={data}"
+            )
+
+        return choices[0]
+
     def _chat_minimax(self, system_prompt: str, messages: List[Dict], user_key: str, stealth: bool = False) -> Dict:
         """MiniMax API 调用"""
-        url = f"https://api.minimax.chat/v1/text/chatcompletion_v2"
+        url = "https://api.minimaxi.com/v1/chat/completions"
 
         headers = {
             "Authorization": f"Bearer {MINIMAX_API_KEY}",
@@ -110,8 +148,10 @@ class AIClient:
             })
 
         payload = {
-            "model": "abab6.5s-chat",
-            "messages": mm_messages
+            "model": "MiniMax-M2.5",
+            "messages": mm_messages,
+            # 使用官方 OpenAI 兼容格式，保留完整 assistant 内容便于工具调用续传。
+            "reasoning_split": False,
         }
 
         # 只在非伪装模式下添加工具
@@ -121,19 +161,9 @@ class AIClient:
 
         response = requests.post(url, headers=headers, json=payload, timeout=60)
         data = response.json()
-
-        if "choices" not in data:
-            print(f"[AIClient] MiniMax invalid response: {data}")
-            return {
-                "success": False,
-                "reply": ERROR_MESSAGE,
-                "function_result": {
-                    "success": False,
-                    "message": f"MiniMax返回异常: {data}"
-                }
-            }
-
-        choice = data["choices"][0]
+        choice = self._extract_first_choice("MiniMax", response, data)
+        if isinstance(choice, dict) and "success" in choice:
+            return choice
         message = choice.get("message", {})
 
         # 检查是否有函数调用（仅在非伪装模式下）
@@ -177,19 +207,9 @@ class AIClient:
 
         response = requests.post(url, headers=headers, json=payload, timeout=60)
         data = response.json()
-
-        if "choices" not in data:
-            print(f"[AIClient] GLM invalid response: {data}")
-            return {
-                "success": False,
-                "reply": ERROR_MESSAGE,
-                "function_result": {
-                    "success": False,
-                    "message": f"GLM返回异常: {data}"
-                }
-            }
-
-        choice = data["choices"][0]
+        choice = self._extract_first_choice("GLM", response, data)
+        if isinstance(choice, dict) and "success" in choice:
+            return choice
         message = choice.get("message", {})
 
         # 检查是否有函数调用（仅在非伪装模式下）

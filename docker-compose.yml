@@ -16,7 +16,6 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE:-ai_step}
       - AI_PROVIDER=${AI_PROVIDER:-minimax}
       - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
-      - MINIMAX_GROUP_ID=${MINIMAX_GROUP_ID:-}
       - GLM_API_KEY=${GLM_API_KEY:-}
       - NANRUN_API_KEY=${NANRUN_API_KEY:-}
       - FREE_DAYS=${FREE_DAYS:-3}
