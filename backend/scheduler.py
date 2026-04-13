@@ -106,8 +106,10 @@ class StepScheduler:
             except Exception as e:
                 self.log(f"执行异常: {e}")
 
-            wait_seconds = self._seconds_until_next_scan()
-            self.log(f"下次扫描将在 {int(wait_seconds)} 秒后执行")
+            now = get_beijing_time()
+            next_scan_at = self._next_scan_time(now)
+            wait_seconds = self._seconds_until_next_scan(now)
+            self.log(f"下次扫描时间：{next_scan_at.strftime('%Y-%m-%d %H:%M:%S')}")
             sleep_until = time.time() + wait_seconds
             while self.running and time.time() < sleep_until:
                 time.sleep(min(1, max(0, sleep_until - time.time())))
@@ -115,9 +117,14 @@ class StepScheduler:
     def _seconds_until_next_scan(self, now: Optional[datetime] = None) -> int:
         """计算距离下一个整点扫描还有多少秒。"""
         now = now or get_beijing_time()
-        next_scan_at = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        next_scan_at = self._next_scan_time(now)
         wait_seconds = int((next_scan_at - now).total_seconds())
         return max(wait_seconds, 1)
+
+    def _next_scan_time(self, now: Optional[datetime] = None) -> datetime:
+        """获取下一次整点扫描的北京时间。"""
+        now = now or get_beijing_time()
+        return now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
 
     def _check_and_execute(self):
         """检查并执行定时任务"""

@@ -69,6 +69,12 @@ class SchedulerTests(unittest.TestCase):
         )
         self.assertEqual(3600, exact_hour_wait)
 
+    def test_next_scan_time_is_reported_in_beijing_time(self):
+        next_scan_at = self.scheduler._next_scan_time(
+            datetime(2026, 4, 13, 10, 15, 30)
+        )
+        self.assertEqual("2026-04-13 11:00:00", next_scan_at.strftime("%Y-%m-%d %H:%M:%S"))
+
     def test_process_task_resets_progress_on_new_day_and_clears_failure_state_on_success(self):
         task = _FakeTask()
         user = _FakeUser(vip_expire_at=datetime(2026, 4, 14, 0, 0, 0))
