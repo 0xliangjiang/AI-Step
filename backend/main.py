@@ -500,9 +500,7 @@ class OrderResponse(BaseModel):
     pay_params: Optional[dict] = None
 
 
-@app.get("/api/packages", response_model=PackageResponse)
-async def get_packages():
-    """获取VIP套餐列表"""
+async def _build_package_response():
     if REVIEW_MODE:
         return PackageResponse(
             success=False,
@@ -518,6 +516,18 @@ async def get_packages():
             success=True,
             data=[p.to_dict() for p in packages]
         )
+
+
+@app.get("/api/packages", response_model=PackageResponse)
+async def get_packages():
+    """获取VIP套餐列表"""
+    return await _build_package_response()
+
+
+@app.get("/api/vip/packages", response_model=PackageResponse)
+async def get_vip_packages():
+    """获取VIP套餐列表（兼容备用路径）"""
+    return await _build_package_response()
 
 
 @app.post("/api/pay/create", response_model=OrderResponse)

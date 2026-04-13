@@ -2,6 +2,7 @@
 const api = require('../../utils/api')
 
 const PACKAGE_CACHE_KEY = 'vipPackagesCache'
+const PACKAGE_ENDPOINTS = ['/vip/packages', '/packages']
 
 Page({
   data: {
@@ -39,32 +40,55 @@ Page({
 
   async fetchPackages(cachedPackages) {
     try {
-      const res = await api.request('/packages', 'GET', {})
-      if (res.success && Array.isArray(res.data) && res.data.length) {
-        const packages = res.data
+      const res = await this.requestPackages()
+      if (!res.success) {
+        this.showPackageFallback(cachedPackages, res.message || '套餐暂时没加载出来，请重新加载。')
+        return
+      }
+
+      const packages = Array.isArray(res.data) ? res.data : []
+      if (packages.length) {
         this.applyPackages(packages, false)
         wx.setStorageSync(PACKAGE_CACHE_KEY, packages)
         return
       }
 
-      throw new Error(res.message || '套餐暂时不可用')
+      this.showPackageFallback(cachedPackages, '套餐暂时没加载出来，请重新加载。')
     } catch (e) {
       console.error('加载套餐失败', e)
-      if (cachedPackages.length) {
-        this.applyPackages(cachedPackages, true)
-        this.setData({
-          loadError: '套餐暂时没加载出来，先展示上次可用内容。'
-        })
-        return
-      }
-
-      this.setData({
-        loading: false,
-        loadError: '套餐暂时没加载出来，请重新加载。'
-      })
+      this.showPackageFallback(cachedPackages, '网络开小差了，请重新加载。')
     } finally {
       this.loadingPackagesPromise = null
     }
+  },
+
+  async requestPackages() {
+    let lastError = null
+
+    for (const endpoint of PACKAGE_ENDPOINTS) {
+      try {
+        return await api.request(endpoint, 'GET', {})
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    throw lastError || new Error('网络开小差了，请重新加载。')
+  },
+
+  showPackageFallback(cachedPackages, message) {
+    if (cachedPackages.length) {
+      this.applyPackages(cachedPackages, true)
+      this.setData({
+        loadError: `${message} 先展示上次可用内容。`
+      })
+      return
+    }
+
+    this.setData({
+      loading: false,
+      loadError: message
+    })
   },
 
   applyPackages(packages, usingCachedPackages) {
