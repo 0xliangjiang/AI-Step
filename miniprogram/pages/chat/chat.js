@@ -1,5 +1,21 @@
 // pages/chat/chat.js
 const api = require('../../utils/api')
+const { getAvatarText, mergeUserProfile, resolveDisplayAvatarUrl } = require('../../utils/profile')
+
+const QUICK_ACTION_ITEMS = [
+  { key: 'share_sport', icon: '🏃', label: '分享运动', userText: '分享运动' },
+  { key: 'record_today', icon: '✅', label: '运动打卡', userText: '今天运动打卡' },
+  { key: 'health_today', icon: '👟', label: '健康数据', userText: '查看今日健康数据' },
+  { key: 'workout_plan', icon: '📋', label: '健身计划', userText: '制定运动计划' },
+  { key: 'running_tips', icon: '💡', label: '跑步技巧', userText: '分享运动技巧' }
+]
+
+const STATIC_QUICK_ACTION_RESPONSES = {
+  record_today: '想记录今天的运动，可以直接输入具体内容，例如“记录跑步5公里”或“记录跳绳200个”。',
+  health_today: '想看今天的数据，可以直接告诉我你想了解哪一项，比如步数、运动时长或最近一次记录。',
+  workout_plan: '想做计划的话，直接输入你的目标和时间安排，例如“帮我做一个一周轻运动计划”。',
+  running_tips: '如果你想看跑步建议，可以直接输入你的情况，比如“给我一些新手跑步建议”或“怎么跑得更轻松”。'
+}
 
 // 运动类型配置（根据微信官方文档）
 // 单位: number(个), distance(米), time(分钟), calorie(卡路里)
@@ -141,9 +157,11 @@ Page({
     scrollToView: '',
     userProfile: null,
     avatarText: '微',
+    displayAvatarUrl: '',
     // 分享相关
     showShareModal: false,
     shareSteps: 0,
+    quickActions: QUICK_ACTION_ITEMS,
     sportTypes: SPORT_TYPES,
     selectedSportIndex: 0,
     selectedUnitIndex: 0,
@@ -170,7 +188,7 @@ Page({
     this.setData({
       messages: [{
         role: 'assistant',
-        content: '您好，欢迎使用运动助手。\n\n您可以在这里：\n• 记录运动数据\n• 查看健康趋势\n• 获取运动建议\n• 制定运动计划\n• 同步运动数据\n\n同步示例：\n• 同步跑步5公里\n• 记录游泳30分钟\n• 记录跳绳100个\n\n请输入您的需求。'
+        content: '您好，这里是运动记录工具。\n\n你可以在这里：\n• 记录今天的运动内容\n• 查看近期记录与数据变化\n• 快捷发起运动分享\n\n示例：\n• 记录跑步5公里\n• 记录游泳30分钟\n• 记录跳绳100个\n\n请输入你想记录或查询的内容。'
       }]
     })
   },
@@ -181,14 +199,20 @@ Page({
 
   syncUserProfile() {
     const app = getApp()
-    const userProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
-    const avatarText = userProfile && userProfile.nickName
-      ? userProfile.nickName.charAt(0)
-      : '微'
+    const rawProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const userProfile = rawProfile ? mergeUserProfile(rawProfile, null) : null
+    const avatarText = getAvatarText(userProfile && userProfile.nickName, '微')
 
     this.setData({
       userProfile,
-      avatarText
+      avatarText,
+      displayAvatarUrl: resolveDisplayAvatarUrl(userProfile && userProfile.avatarUrl)
+    })
+  },
+
+  onAvatarError() {
+    this.setData({
+      displayAvatarUrl: ''
     })
   },
 
@@ -318,6 +342,22 @@ Page({
       selectedSportIndex: 0,
       selectedUnitIndex: 0
     })
+  },
+
+  appendStaticQuickReply(action) {
+    const reply = STATIC_QUICK_ACTION_RESPONSES[action]
+    const quickAction = QUICK_ACTION_ITEMS.find(item => item.key === action)
+    if (!reply || !quickAction) return
+
+    this.setData({
+      messages: [
+        ...this.data.messages,
+        { role: 'user', content: quickAction.userText },
+        { role: 'assistant', content: reply }
+      ]
+    })
+
+    this.scrollToBottom()
   },
 
   // 检测数据同步完成
@@ -519,8 +559,11 @@ Page({
   // 快捷操作
   quickAction(e) {
     const action = e.currentTarget.dataset.action
-    this.setData({ inputText: action }, () => {
-      this.sendMessage()
-    })
+    if (action === 'share_sport') {
+      this.openShareModal()
+      return
+    }
+
+    this.appendStaticQuickReply(action)
   }
 })

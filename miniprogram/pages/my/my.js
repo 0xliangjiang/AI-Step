@@ -1,5 +1,11 @@
 // pages/my/my.js
 const api = require('../../utils/api')
+const {
+  getAvatarText,
+  mergeUserProfile,
+  normalizeAvatarUrl,
+  resolveDisplayAvatarUrl
+} = require('../../utils/profile')
 
 function parseDateTime(value) {
   if (!value) return null
@@ -11,6 +17,7 @@ Page({
     userInfo: null,
     userProfile: null,
     avatarText: '未',
+    displayAvatarUrl: '',
     hasProfile: false,
     editNickname: '',
     editAvatarUrl: '',
@@ -51,20 +58,21 @@ Page({
 
   syncLoginState() {
     const app = getApp()
-    const userProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const rawProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const userProfile = rawProfile ? mergeUserProfile(rawProfile, null) : null
     const isLoggedIn = !!(app.globalData.openid || wx.getStorageSync('openid'))
-    const hasProfile = !!(userProfile && (userProfile.nickName || userProfile.avatarUrl))
-    const avatarText = isLoggedIn
-      ? ((userProfile && userProfile.nickName) ? userProfile.nickName.charAt(0) : '微')
-      : '未'
+    const displayAvatarUrl = resolveDisplayAvatarUrl(userProfile && userProfile.avatarUrl)
+    const hasProfile = !!(userProfile && (userProfile.nickName || displayAvatarUrl))
+    const avatarText = isLoggedIn ? getAvatarText(userProfile && userProfile.nickName, '微') : '未'
 
     this.setData({
       userProfile,
       isLoggedIn,
       hasProfile,
       avatarText,
+      displayAvatarUrl,
       editNickname: (userProfile && userProfile.nickName) || '',
-      editAvatarUrl: (userProfile && userProfile.avatarUrl) || ''
+      editAvatarUrl: displayAvatarUrl
     })
   },
 
@@ -89,22 +97,30 @@ Page({
         const expireAt = parseDateTime(data.vip_expire_at)
         const isVip = expireAt && expireAt > now
         const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
+        const userProfile = mergeUserProfile(this.data.userProfile, data)
+        const displayAvatarUrl = resolveDisplayAvatarUrl(this.data.editAvatarUrl, userProfile.avatarUrl)
+        const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
+        const app = getApp()
+
+        app.globalData.userProfile = {
+          ...userProfile,
+          avatarUrl: displayAvatarUrl
+        }
+        wx.setStorageSync('userProfile', app.globalData.userProfile)
 
         this.setData({
           userInfo: data,
-          userProfile: {
-            nickName: data.nickname || (this.data.userProfile && this.data.userProfile.nickName) || '',
-            avatarUrl: data.avatar_url || (this.data.userProfile && this.data.userProfile.avatarUrl) || ''
-          },
+          userProfile: app.globalData.userProfile,
           vipExpireAt: data.vip_expire_at,
           isVip,
           remainingDays,
           loading: false,
           isLoggedIn: true,
-          hasProfile: !!(data.nickname || data.avatar_url || (this.data.userProfile && (this.data.userProfile.nickName || this.data.userProfile.avatarUrl))),
-          avatarText: data.nickname ? data.nickname.charAt(0) : this.data.avatarText,
-          editNickname: data.nickname || '',
-          editAvatarUrl: data.avatar_url || ''
+          hasProfile: !!(userProfile.nickName || displayAvatarUrl),
+          avatarText,
+          displayAvatarUrl,
+          editNickname: userProfile.nickName || '',
+          editAvatarUrl: displayAvatarUrl
         })
       }
     } catch (e) {
@@ -176,7 +192,8 @@ Page({
   onChooseAvatar(e) {
     const avatarUrl = e.detail.avatarUrl || ''
     this.setData({
-      editAvatarUrl: avatarUrl
+      editAvatarUrl: avatarUrl,
+      displayAvatarUrl: resolveDisplayAvatarUrl(avatarUrl, this.data.userProfile && this.data.userProfile.avatarUrl)
     })
   },
 
@@ -205,14 +222,15 @@ Page({
     }
 
     const nickname = (this.data.editNickname || '').trim()
-    const avatarUrl = this.data.editAvatarUrl || ''
+    const avatarUrl = resolveDisplayAvatarUrl(this.data.editAvatarUrl)
+    const remoteAvatarUrl = normalizeAvatarUrl(this.data.editAvatarUrl, { allowLocalTemp: false })
 
     this.setData({ savingProfile: true })
 
     try {
       const res = await api.updateUserProfile({
         nickname,
-        avatar_url: avatarUrl
+        avatar_url: remoteAvatarUrl
       })
 
       if (!res.success) {
@@ -247,6 +265,13 @@ Page({
     } finally {
       this.setData({ savingProfile: false })
     }
+  },
+
+  onAvatarError() {
+    this.setData({
+      displayAvatarUrl: '',
+      editAvatarUrl: ''
+    })
   },
 
   handleLogout() {

@@ -2,8 +2,8 @@
 <view class="container">
   <!-- 标题 -->
   <view class="header">
-    <view class="title">开通会员</view>
-    <view class="desc">享受更多权益</view>
+    <view class="title">解锁陪练会员</view>
+    <view class="desc">把记录、建议和节奏提醒都升级</view>
   </view>
 
   <!-- 套餐列表 -->
@@ -30,22 +30,22 @@
     <view class="benefits-title">会员权益</view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
-      <text>无限运动数据分析</text>
+      <text>不限次查看运动复盘</text>
     </view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
-      <text>优先数据同步</text>
+      <text>优先同步与稳定陪跑</text>
     </view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
-      <text>专属运动方案</text>
+      <text>专属节奏建议与提醒</text>
     </view>
   </view>
 
   <!-- 底部按钮 -->
   <view class="footer">
     <button class="pay-btn" bindtap="createOrder" disabled="{{paying || !selectedPackage}}">
-      {{paying ? '支付中...' : selectedPackage ? '立即支付 ¥' + (selectedPackage.price / 100) : '请选择套餐'}}
+      {{paying ? '正在为你解锁...' : selectedPackage ? '立即解锁 ¥' + (selectedPackage.price / 100) : '先选一个陪练套餐'}}
     </button>
   </view>
 </view>

@@ -14,9 +14,10 @@
       <view class="avatar-wrap">
         <image
           class="user-avatar"
-          wx:if="{{userProfile && userProfile.avatarUrl}}"
-          src="{{userProfile.avatarUrl}}"
+          wx:if="{{displayAvatarUrl}}"
+          src="{{displayAvatarUrl}}"
           mode="aspectFill"
+          binderror="onAvatarError"
         ></image>
         <view class="user-avatar fallback" wx:else>{{avatarText}}</view>
         <view class="avatar-ring"></view>
@@ -24,6 +25,7 @@
 
       <view class="user-info">
         <view class="greeting">{{greeting}}</view>
+        <view class="greeting">今天想怎么动一动？</view>
         <view class="username">{{(userProfile && userProfile.nickName) || '微信用户'}}</view>
       </view>
     </view>
@@ -50,33 +52,33 @@
   <!-- 功能特点 -->
   <view class="section">
     <view class="section-header">
-      <view class="section-title">功能特点</view>
+      <view class="section-title">今日陪练</view>
       <view class="section-line"></view>
     </view>
 
     <view class="feature-grid">
       <view class="feature-card">
         <view class="feature-icon">🏃</view>
-        <view class="feature-title">运动追踪</view>
-        <view class="feature-desc">记录每日运动数据</view>
+        <view class="feature-title">轻松打卡</view>
+        <view class="feature-desc">随手记下今天动过的每一段节奏</view>
       </view>
 
       <view class="feature-card">
         <view class="feature-icon">📊</view>
-        <view class="feature-title">数据分析</view>
-        <view class="feature-desc">智能分析运动效果</view>
+        <view class="feature-title">节奏复盘</view>
+        <view class="feature-desc">看看今天比昨天多走了多少、稳了多少</view>
       </view>
 
       <view class="feature-card">
         <view class="feature-icon">🎯</view>
-        <view class="feature-title">目标设定</view>
-        <view class="feature-desc">制定个性化计划</view>
+        <view class="feature-title">目标陪跑</view>
+        <view class="feature-desc">把计划拆成每天都能完成的小目标</view>
       </view>
 
       <view class="feature-card">
         <view class="feature-icon">💬</view>
-        <view class="feature-title">智能助手</view>
-        <view class="feature-desc">AI运动建议指导</view>
+        <view class="feature-title">AI陪练</view>
+        <view class="feature-desc">给你更贴身的提醒和建议，不用硬撑</view>
       </view>
     </view>
   </view>
@@ -85,9 +87,9 @@
   <view class="action-section" wx:if="{{!reviewMode}}">
     <button class="start-btn" bindtap="goChat">
       <text class="btn-icon">🚀</text>
-      <text>开始记录</text>
+      <text>开始今日打卡</text>
     </button>
-    <view class="action-tip">点击开始您的运动记录之旅</view>
+    <view class="action-tip">今天动一点，也是在认真照顾自己</view>
   </view>
 </view>
 
@@ -96,8 +98,8 @@
   <view class="login-modal">
     <view class="login-modal-header">
       <text class="login-modal-icon">👋</text>
-      <text class="login-modal-title">欢迎来到运动记录</text>
-      <text class="login-modal-desc">登录后可使用全部功能</text>
+      <text class="login-modal-title">欢迎回来，开始今天的轻运动</text>
+      <text class="login-modal-desc">登录后让陪练更懂你，也帮你记住每一次小进步</text>
     </view>
 
     <view class="login-modal-body">

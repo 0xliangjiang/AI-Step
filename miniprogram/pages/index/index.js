@@ -1,5 +1,6 @@
 // pages/index/index.js
 const api = require('../../utils/api')
+const { getAvatarText, mergeUserProfile, resolveDisplayAvatarUrl } = require('../../utils/profile')
 
 function parseDateTime(value) {
   if (!value) return null
@@ -11,6 +12,7 @@ Page({
     userInfo: null,
     userProfile: null,
     avatarText: '微',
+    displayAvatarUrl: '',
     greeting: '你好',
     vipExpireAt: null,
     remainingDays: 0,
@@ -21,9 +23,9 @@ Page({
     showLoginModal: false,
     loginLoading: false,
     loginBenefits: [
-      { icon: '🏃', text: '智能管理健康数据' },
-      { icon: '📊', text: '查看运动历史趋势' },
-      { icon: '🎯', text: '个性化运动建议' }
+      { icon: '🏃', text: '记录每一次小进步' },
+      { icon: '📊', text: '轻松查看今天和最近的节奏变化' },
+      { icon: '🎯', text: '拿到更适合你的轻运动建议' }
     ]
   },
 
@@ -110,14 +112,14 @@ Page({
 
   syncUserProfile() {
     const app = getApp()
-    const userProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
-    const avatarText = userProfile && userProfile.nickName
-      ? userProfile.nickName.charAt(0)
-      : '微'
+    const rawProfile = app.globalData.userProfile || wx.getStorageSync('userProfile') || null
+    const userProfile = rawProfile ? mergeUserProfile(rawProfile, null) : null
+    const avatarText = getAvatarText(userProfile && userProfile.nickName, '微')
 
     this.setData({
       userProfile,
       avatarText,
+      displayAvatarUrl: resolveDisplayAvatarUrl(userProfile && userProfile.avatarUrl),
       greeting: this.getGreeting()
     })
   },
@@ -132,14 +134,19 @@ Page({
         const expireAt = parseDateTime(data.vip_expire_at)
         const isVip = expireAt && expireAt > now
         const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
+        const userProfile = mergeUserProfile(this.data.userProfile, data)
+        const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
+        const displayAvatarUrl = resolveDisplayAvatarUrl(userProfile.avatarUrl)
+        const app = getApp()
+
+        app.globalData.userProfile = userProfile
+        wx.setStorageSync('userProfile', userProfile)
 
         this.setData({
           userInfo: data,
-          userProfile: {
-            nickName: data.nickname || (this.data.userProfile && this.data.userProfile.nickName) || '微信用户',
-            avatarUrl: data.avatar_url || (this.data.userProfile && this.data.userProfile.avatarUrl) || ''
-          },
-          avatarText: data.nickname ? data.nickname.charAt(0) : this.data.avatarText,
+          userProfile,
+          avatarText,
+          displayAvatarUrl,
           vipExpireAt: data.vip_expire_at,
           isVip,
           remainingDays,
@@ -150,6 +157,12 @@ Page({
       console.error('获取用户信息失败', e)
       this.setData({ loading: false })
     }
+  },
+
+  onAvatarError() {
+    this.setData({
+      displayAvatarUrl: ''
+    })
   },
 
   // 广告相关方法 - 暂时隐藏

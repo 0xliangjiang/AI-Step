@@ -4,7 +4,7 @@
 .page {
   min-height: 100vh;
   padding: 0 24rpx 40rpx;
-  background: linear-gradient(180deg, #f0f4ff 0%, #f8fafc 30%, #f5f7fb 100%);
+  background: linear-gradient(180deg, #FFF1E2 0%, #FFF8F0 30%, #FFFDF8 100%);
   box-sizing: border-box;
   position: relative;
 }
@@ -16,7 +16,7 @@
   left: 0;
   right: 0;
   height: 320rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: linear-gradient(135deg, #FF8A3D 0%, #39B8FF 50%, #FFD36E 100%);
   border-radius: 0 0 60rpx 60rpx;
   z-index: 0;
 }
@@ -41,7 +41,7 @@
   background: rgba(255, 255, 255, 0.95);
   border-radius: 32rpx;
   box-shadow:
-    0 8rpx 32rpx rgba(102, 126, 234, 0.15),
+    0 8rpx 32rpx rgba(255, 138, 61, 0.18),
     0 2rpx 8rpx rgba(0, 0, 0, 0.04);
   backdrop-filter: blur(20rpx);
   display: flex;
@@ -86,8 +86,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, #FF8A3D 0%, #39B8FF 100%);
+  color: #FFFFFF;
   font-size: 56rpx;
   font-weight: 700;
 }
@@ -100,16 +100,16 @@
   bottom: -8rpx;
   border-radius: 50%;
   border: 4rpx solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 4rpx 20rpx rgba(102, 126, 234, 0.4);
+  box-shadow: 0 4rpx 20rpx rgba(240, 107, 31, 0.24);
   z-index: 1;
 }
 
 .avatar-edit-tip {
   margin-top: 12rpx;
   padding: 6rpx 16rpx;
-  background: rgba(102, 126, 234, 0.1);
+  background: rgba(22, 50, 79, 0.08);
   border-radius: 999rpx;
-  color: #667eea;
+  color: #FF8A3D;
   font-size: 20rpx;
   font-weight: 500;
 }
@@ -125,7 +125,7 @@
 
 .nickname-input {
   text-align: center;
-  color: #1a1a2e;
+  color: #16324F;
   font-size: 40rpx;
   font-weight: 700;
   letter-spacing: 1rpx;
@@ -136,16 +136,16 @@
 }
 
 .nickname-input:focus {
-  background: rgba(102, 126, 234, 0.05);
+  background: rgba(255, 138, 61, 0.07);
 }
 
 .nickname-placeholder {
-  color: #c4cad4;
+  color: #D8C8B6;
 }
 
 .nickname-hint {
   margin-top: 8rpx;
-  color: #9ca3af;
+  color: #8B9AA7;
   font-size: 22rpx;
 }
 
@@ -159,7 +159,7 @@
 }
 
 .login-tip {
-  color: #6b7280;
+  color: #6C7F90;
   font-size: 26rpx;
   margin-bottom: 20rpx;
 }
@@ -168,8 +168,8 @@
   width: 100%;
   max-width: 400rpx;
   height: 88rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  box-shadow: 0 6rpx 20rpx rgba(102, 126, 234, 0.35);
+  background: linear-gradient(135deg, #FF8A3D 0%, #39B8FF 100%);
+  box-shadow: 0 6rpx 20rpx rgba(255, 138, 61, 0.28);
 }
 
 /* 状态标签行 */
@@ -194,24 +194,24 @@
 }
 
 .status-chip.vip {
-  background: linear-gradient(135deg, #ffd700 0%, #ffb347 100%);
+  background: linear-gradient(135deg, #FFD36E 0%, #FFB457 100%);
   color: #7c5800;
   box-shadow: 0 2rpx 8rpx rgba(255, 183, 71, 0.4);
 }
 
 .status-chip.default {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
+  background: rgba(22, 50, 79, 0.08);
+  color: #FF8A3D;
 }
 
 .status-chip.complete {
   background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  color: #28C69A;
 }
 
 .status-chip.pending {
   background: rgba(245, 158, 11, 0.1);
-  color: #f59e0b;
+  color: #FF8A3D;
 }
 
 .chip-icon {
@@ -223,7 +223,7 @@
   margin-top: 28rpx;
   width: 100%;
   padding-top: 24rpx;
-  border-top: 1rpx solid rgba(102, 126, 234, 0.1);
+  border-top: 1rpx solid rgba(22, 50, 79, 0.08);
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200rpx, 1fr));
   gap: 16rpx;
@@ -232,7 +232,7 @@
 .stat-block {
   padding: 20rpx 24rpx;
   border-radius: 18rpx;
-  background: linear-gradient(135deg, #f8fafc 0%, #f0f4ff 100%);
+  background: linear-gradient(135deg, #FFF8F0 0%, #FFF1E2 100%);
   display: flex;
   align-items: center;
   gap: 14rpx;
@@ -248,7 +248,7 @@
 }
 
 .stat-value {
-  color: #1a1a2e;
+  color: #16324F;
   font-size: 30rpx;
   font-weight: 700;
 }
@@ -259,7 +259,7 @@
 
 .stat-label {
   margin-top: 2rpx;
-  color: #9ca3af;
+  color: #8B9AA7;
   font-size: 20rpx;
 }
 
@@ -269,15 +269,15 @@
   width: 100%;
   height: 88rpx;
   border-radius: 20rpx;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, #FF8A3D 0%, #39B8FF 100%);
+  color: #FFFFFF;
   font-size: 28rpx;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10rpx;
-  box-shadow: 0 6rpx 20rpx rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6rpx 20rpx rgba(57, 184, 255, 0.24);
   transition: all 0.2s ease;
 }
 
@@ -287,7 +287,7 @@
 
 .save-btn:active {
   transform: scale(0.98);
-  box-shadow: 0 3rpx 10rpx rgba(102, 126, 234, 0.3);
+  box-shadow: 0 3rpx 10rpx rgba(57, 184, 255, 0.24);
 }
 
 .save-btn[disabled] {
@@ -324,12 +324,12 @@
 }
 
 .action-btn.secondary {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
+  background: rgba(22, 50, 79, 0.08);
+  color: #FF8A3D;
 }
 
 .action-btn.secondary:active {
-  background: rgba(102, 126, 234, 0.2);
+  background: rgba(255, 138, 61, 0.16);
 }
 
 .action-btn.ghost {
@@ -359,7 +359,7 @@
 }
 
 .section-title {
-  color: #374151;
+  color: #23415F;
   font-size: 28rpx;
   font-weight: 700;
   white-space: nowrap;
@@ -368,15 +368,15 @@
 .section-line {
   flex: 1;
   height: 1rpx;
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.3) 0%, transparent 100%);
+  background: linear-gradient(90deg, rgba(57, 184, 255, 0.24) 0%, transparent 100%);
 }
 
 /* ========== 通用卡片 ========== */
 .card {
-  background: #ffffff;
+  background: #FFFFFF;
   border-radius: 28rpx;
   box-shadow:
-    0 4rpx 20rpx rgba(102, 126, 234, 0.08),
+    0 4rpx 20rpx rgba(22, 50, 79, 0.07),
     0 1rpx 4rpx rgba(0, 0, 0, 0.02);
   overflow: hidden;
 }
@@ -394,11 +394,11 @@
   left: 0;
   right: 0;
   height: 4rpx;
-  background: linear-gradient(90deg, #c4cad4 0%, #e5e7eb 100%);
+  background: linear-gradient(90deg, #D8C8B6 0%, #e5e7eb 100%);
 }
 
 .vip-card.is-vip::before {
-  background: linear-gradient(90deg, #ffd700 0%, #ffb347 50%, #ffd700 100%);
+  background: linear-gradient(90deg, #FFD36E 0%, #FFB457 50%, #FFD36E 100%);
 }
 
 .vip-header {
@@ -418,7 +418,7 @@
   display: flex;
   align-items: center;
   gap: 10rpx;
-  color: #1a1a2e;
+  color: #16324F;
   font-size: 32rpx;
   font-weight: 700;
 }
@@ -429,7 +429,7 @@
 
 .vip-desc {
   margin-top: 8rpx;
-  color: #9ca3af;
+  color: #8B9AA7;
   font-size: 24rpx;
 }
 
@@ -439,7 +439,7 @@
   gap: 4rpx;
   padding: 16rpx 28rpx;
   border-radius: 20rpx;
-  background: linear-gradient(135deg, #f8fafc 0%, #f0f4ff 100%);
+  background: linear-gradient(135deg, #FFF8F0 0%, #FFF1E2 100%);
 }
 
 .vip-card.is-vip .vip-badge {
@@ -447,25 +447,25 @@
 }
 
 .badge-num {
-  color: #667eea;
+  color: #FF8A3D;
   font-size: 48rpx;
   font-weight: 800;
   line-height: 1;
 }
 
 .vip-card.is-vip .badge-num {
-  color: #f59e0b;
+  color: #FF8A3D;
 }
 
 .badge-unit {
-  color: #9ca3af;
+  color: #8B9AA7;
   font-size: 22rpx;
   font-weight: 600;
 }
 
 .vip-divider {
   height: 1rpx;
-  background: linear-gradient(90deg, transparent 0%, rgba(102, 126, 234, 0.15) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 138, 61, 0.18) 50%, transparent 100%);
   margin: 0 32rpx;
 }
 
@@ -482,32 +482,32 @@
   align-items: center;
   padding: 16rpx 20rpx;
   border-radius: 14rpx;
-  background: #fafbfc;
+  background: #FFF7EF;
 }
 
 .detail-label {
-  color: #9ca3af;
+  color: #8B9AA7;
   font-size: 24rpx;
 }
 
 .detail-value {
-  color: #1a1a2e;
+  color: #16324F;
   font-size: 28rpx;
   font-weight: 600;
 }
 
 .detail-value.small {
   font-size: 24rpx;
-  color: #6b7280;
+  color: #6C7F90;
 }
 
 .detail-value.highlight {
-  color: #667eea;
+  color: #FF8A3D;
   font-weight: 700;
 }
 
 .detail-value.success {
-  color: #10b981;
+  color: #28C69A;
 }
 
 /* VIP 按钮 */
@@ -515,8 +515,8 @@
   margin-top: 20rpx;
   height: 96rpx;
   border-radius: 22rpx;
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, #FF8A3D 0%, #F06B1F 100%);
+  color: #FFFFFF;
   font-size: 30rpx;
   font-weight: 700;
   display: flex;
@@ -550,14 +550,14 @@
 }
 
 .menu-item:active {
-  background: #fafbfc;
+  background: #FFF7EF;
 }
 
 .menu-icon {
   width: 64rpx;
   height: 64rpx;
   border-radius: 16rpx;
-  background: linear-gradient(135deg, #f0f4ff 0%, #e8ecff 100%);
+  background: linear-gradient(135deg, #FFF1E2 0%, #E6F7FF 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -570,19 +570,19 @@
 }
 
 .menu-title {
-  color: #1a1a2e;
+  color: #16324F;
   font-size: 30rpx;
   font-weight: 600;
 }
 
 .menu-desc {
   margin-top: 6rpx;
-  color: #9ca3af;
+  color: #8B9AA7;
   font-size: 24rpx;
 }
 
 .menu-arrow {
-  color: #c4cad4;
+  color: #D8C8B6;
   font-size: 40rpx;
   line-height: 1;
   font-weight: 300;

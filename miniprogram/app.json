@@ -16,14 +16,14 @@
   },
   "window": {
     "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#667eea",
+    "navigationBarBackgroundColor": "#FF8A3D",
     "navigationBarTitleText": "运动记录",
     "navigationBarTextStyle": "white"
   },
   "tabBar": {
-    "color": "#999999",
-    "selectedColor": "#667eea",
-    "backgroundColor": "#ffffff",
+    "color": "#8B9AA7",
+    "selectedColor": "#FF8A3D",
+    "backgroundColor": "#FFFDF8",
     "borderStyle": "black",
     "list": [
       {

@@ -1,4 +1,6 @@
 // app.js
+const { mergeUserProfile } = require('./utils/profile')
+
 const API_BASE_URLS = {
   // 微信开发者工具 / 开发版
   develop: 'https://aistep.discordbot.cn',
@@ -38,7 +40,8 @@ App({
 
   async onLaunch() {
     console.log('[App] 当前API地址:', this.globalData.baseUrl)
-    this.globalData.userProfile = wx.getStorageSync('userProfile') || null
+    const cachedProfile = wx.getStorageSync('userProfile') || null
+    this.globalData.userProfile = cachedProfile ? mergeUserProfile(cachedProfile, null) : null
     await this.loadPublicConfig()
     // 检查登录状态
     this.checkLogin()
@@ -98,19 +101,20 @@ App({
               }
 
               const cachedProfile = wx.getStorageSync('userProfile') || null
+              const mergedProfile = cachedProfile ? mergeUserProfile(cachedProfile, null) : null
 
               this.globalData.openid = res.data.openid
-              this.globalData.userProfile = cachedProfile
+              this.globalData.userProfile = mergedProfile
               this.globalData.userInfo = {
                 ...(this.globalData.userInfo || {}),
-                nickname: cachedProfile ? cachedProfile.nickName : '',
-                avatar_url: cachedProfile ? cachedProfile.avatarUrl : ''
+                nickname: mergedProfile ? mergedProfile.nickName : '',
+                avatar_url: mergedProfile ? mergedProfile.avatarUrl : ''
               }
               wx.setStorageSync('openid', res.data.openid)
               this.getUserInfo()
               resolve({
                 openid: res.data.openid,
-                userProfile: cachedProfile
+                userProfile: mergedProfile
               })
             },
             fail: () => reject(new Error('登录请求失败'))
@@ -141,14 +145,9 @@ App({
       success: (res) => {
         if (res.data.success) {
           this.globalData.userInfo = res.data.data
-          if (res.data.data.nickname || res.data.data.avatar_url) {
-            const userProfile = {
-              nickName: res.data.data.nickname || '微信用户',
-              avatarUrl: res.data.data.avatar_url || ''
-            }
-            this.globalData.userProfile = userProfile
-            wx.setStorageSync('userProfile', userProfile)
-          }
+          const mergedProfile = mergeUserProfile(this.globalData.userProfile, res.data.data)
+          this.globalData.userProfile = mergedProfile
+          wx.setStorageSync('userProfile', mergedProfile)
           this.globalData.vipExpireAt = res.data.data.vip_expire_at
         }
       }
