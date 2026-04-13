@@ -14,7 +14,7 @@ const STATIC_QUICK_ACTION_RESPONSES = {
   record_today: '想记录今天的运动，可以直接输入具体内容，例如“记录跑步5公里”或“记录跳绳200个”。',
   health_today: '想看今天的数据，可以直接告诉我你想了解哪一项，比如步数、运动时长或最近一次记录。',
   workout_plan: '想做计划的话，直接输入你的目标和时间安排，例如“帮我做一个一周轻运动计划”。',
-  running_tips: '如果你想看跑步建议，可以直接输入你的情况，比如“给我一些新手跑步建议”或“怎么跑得更轻松”。'
+  running_tips: '如果你想看跑步内容参考，可以直接输入你的情况，比如“新手跑步要注意什么”或“怎么跑得更轻松”。'
 }
 
 // 运动类型配置（根据微信官方文档）
@@ -272,7 +272,7 @@ Page({
           ? `系统异常\n${fallbackErrorMessage}`
           : (res.reply || '抱歉，出现了一些问题，请稍后再试。')
 
-      // 添加助手回复
+      // 添加工具回复
       const newMessages = [...this.data.messages, {
         role: 'assistant',
         content: displayReply,

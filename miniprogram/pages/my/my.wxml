@@ -108,7 +108,7 @@
             <text class="vip-icon">{{isVip ? '👑' : '⭐'}}</text>
             <text>{{isVip ? '会员服务已开通' : '体验会员'}}</text>
           </view>
-          <view class="vip-desc">{{isVip ? '感谢您的支持，享受专属权益' : '开通会员解锁更多功能'}}</view>
+          <view class="vip-desc">{{isVip ? '感谢您的支持，享受专属权益' : '开通会员查看更多功能'}}</view>
         </view>
         <view class="vip-badge">
           <text class="badge-num">{{isVip ? remainingDays : '0'}}</text>

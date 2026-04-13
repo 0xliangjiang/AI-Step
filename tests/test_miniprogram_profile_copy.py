@@ -29,7 +29,7 @@ class MiniProgramProfileCopyTests(unittest.TestCase):
         self.assertIn('displayAvatarUrl', chat_js)
         self.assertIn('onAvatarError()', chat_js)
 
-    def test_home_and_vip_copy_feels_like_light_coaching(self):
+    def test_home_and_vip_copy_uses_friendly_neutral_wording(self):
         index_wxml = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.wxml').read_text(encoding='utf-8')
         vip_wxml = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxml').read_text(encoding='utf-8')
         index_js = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.js').read_text(encoding='utf-8')
@@ -40,10 +40,10 @@ class MiniProgramProfileCopyTests(unittest.TestCase):
         self.assertIn('今天动一点，也是在认真照顾自己', index_wxml)
         self.assertIn('欢迎回来，开始今天的轻运动', index_wxml)
         self.assertIn('记录每一次小进步', index_js)
-        self.assertIn('解锁陪练会员', vip_wxml)
-        self.assertIn('把记录、建议和节奏提醒都升级', vip_wxml)
+        self.assertIn('开通会员服务', vip_wxml)
+        self.assertIn('把运动记录和同步体验升级', vip_wxml)
         self.assertIn('不限次查看运动复盘', vip_wxml)
-        self.assertIn('专属节奏建议与提醒', vip_wxml)
+        self.assertIn('专属记录参考与同步说明', vip_wxml)
 
 
 if __name__ == '__main__':

@@ -52,7 +52,7 @@
   <!-- 功能特点 -->
   <view class="section">
     <view class="section-header">
-      <view class="section-title">今日陪练</view>
+      <view class="section-title">今日记录</view>
       <view class="section-line"></view>
     </view>
 
@@ -71,14 +71,14 @@
 
       <view class="feature-card">
         <view class="feature-icon">🎯</view>
-        <view class="feature-title">目标陪跑</view>
+        <view class="feature-title">目标管理</view>
         <view class="feature-desc">把计划拆成每天都能完成的小目标</view>
       </view>
 
       <view class="feature-card">
         <view class="feature-icon">💬</view>
-        <view class="feature-title">AI陪练</view>
-        <view class="feature-desc">给你更贴身的提醒和建议，不用硬撑</view>
+        <view class="feature-title">记录分析</view>
+        <view class="feature-desc">查看记录变化和常用数据，安排更从容</view>
       </view>
     </view>
   </view>
@@ -99,7 +99,7 @@
     <view class="login-modal-header">
       <text class="login-modal-icon">👋</text>
       <text class="login-modal-title">欢迎回来，开始今天的轻运动</text>
-      <text class="login-modal-desc">登录后让陪练更懂你，也帮你记住每一次小进步</text>
+      <text class="login-modal-desc">登录后可同步保存记录，并查看每一次小进步</text>
     </view>
 
     <view class="login-modal-body">

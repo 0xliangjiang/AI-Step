@@ -25,7 +25,7 @@ Page({
     loginBenefits: [
       { icon: '🏃', text: '记录每一次小进步' },
       { icon: '📊', text: '轻松查看今天和最近的节奏变化' },
-      { icon: '🎯', text: '拿到更适合你的轻运动建议' }
+      { icon: '🎯', text: '获取更适合你的运动记录参考' }
     ]
   },
 
