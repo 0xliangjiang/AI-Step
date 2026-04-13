@@ -6,10 +6,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BackendDockerfileTests(unittest.TestCase):
-    def test_backend_dockerfile_does_not_override_apt_source_to_aliyun(self):
+    def test_backend_dockerfile_uses_tuna_https_for_apt_sources(self):
         dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
-        self.assertNotIn("/etc/apt/sources.list.d/debian.sources", dockerfile)
-        self.assertNotIn("sed -i 's/deb.debian.org/mirrors.aliyun.com/g'", dockerfile)
+        self.assertIn("/etc/apt/sources.list.d/debian.sources", dockerfile)
+        self.assertIn("https://mirrors.tuna.tsinghua.edu.cn/debian", dockerfile)
+        self.assertIn("https://mirrors.tuna.tsinghua.edu.cn/debian-security", dockerfile)
 
 
 if __name__ == "__main__":
