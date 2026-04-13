@@ -58,6 +58,11 @@
       </view>
     </view>
 
+    <view class="profile-guide-inline" wx:if="{{isLoggedIn && !hasProfile}}">
+      <view class="profile-guide-inline-title">继续完善资料</view>
+      <view class="profile-guide-inline-desc">补充头像和昵称后，首页展示会更完整。</view>
+    </view>
+
     <!-- 统计区块 -->
     <view class="account-stats" wx:if="{{isLoggedIn}}">
       <view class="stat-block">
@@ -79,7 +84,7 @@
     <!-- 保存按钮 -->
     <button class="save-btn" wx:if="{{isLoggedIn}}" bindtap="saveProfile" loading="{{savingProfile}}" disabled="{{savingProfile}}">
       <text class="btn-icon" wx:if="{{!savingProfile}}">💾</text>
-      <text>{{savingProfile ? '保存中...' : '保存资料'}}</text>
+      <text>{{savingProfile ? '保存中...' : (hasProfile ? '保存资料' : '保存并继续')}}</text>
     </button>
   </view>
 

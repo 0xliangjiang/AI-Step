@@ -218,6 +218,27 @@
   font-size: 20rpx;
 }
 
+.profile-guide-inline {
+  margin-top: 20rpx;
+  width: 100%;
+  padding: 22rpx 24rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #FFF8F0 0%, #FFF1E2 100%);
+}
+
+.profile-guide-inline-title {
+  color: #16324F;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.profile-guide-inline-desc {
+  margin-top: 8rpx;
+  color: #6C7F90;
+  font-size: 22rpx;
+  line-height: 1.6;
+}
+
 /* 统计区块 */
 .account-stats {
   margin-top: 28rpx;

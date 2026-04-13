@@ -13,6 +13,7 @@ Page({
     userProfile: null,
     avatarText: '微',
     displayAvatarUrl: '',
+    hasProfile: false,
     greeting: '你好',
     vipExpireAt: null,
     remainingDays: 0,
@@ -21,6 +22,7 @@ Page({
     reviewMode: false,
     // 登录弹窗
     showLoginModal: false,
+    showProfileGuide: false,
     loginLoading: false,
     loginBenefits: [
       { icon: '🏃', text: '记录每一次小进步' },
@@ -69,6 +71,7 @@ Page({
       })
       this.syncUserProfile()
       await this.loadUserInfo()
+      this.maybePromptProfileCompletion()
       wx.showToast({
         title: '登录成功',
         icon: 'success'
@@ -120,42 +123,84 @@ Page({
       userProfile,
       avatarText,
       displayAvatarUrl: resolveDisplayAvatarUrl(userProfile && userProfile.avatarUrl),
+      hasProfile: !!(userProfile && (userProfile.nickName || userProfile.avatarUrl)),
       greeting: this.getGreeting()
+    })
+  },
+
+  applyUserInfo(data) {
+    if (!data) return
+
+    const now = new Date()
+    const expireAt = parseDateTime(data.vip_expire_at)
+    const isVip = expireAt && expireAt > now
+    const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
+    const userProfile = mergeUserProfile(this.data.userProfile, data)
+    const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
+    const displayAvatarUrl = resolveDisplayAvatarUrl(userProfile.avatarUrl)
+    const hasProfile = !!(userProfile.nickName || displayAvatarUrl)
+    const app = getApp()
+
+    app.globalData.userInfo = data
+    app.globalData.userProfile = userProfile
+    app.globalData.vipExpireAt = data.vip_expire_at
+    wx.setStorageSync('userProfile', userProfile)
+
+    this.setData({
+      userInfo: data,
+      userProfile,
+      avatarText,
+      displayAvatarUrl,
+      hasProfile,
+      vipExpireAt: data.vip_expire_at,
+      isVip,
+      remainingDays,
+      loading: false
+    })
+  },
+
+  maybePromptProfileCompletion() {
+    const app = getApp()
+    const openid = app.globalData.openid || wx.getStorageSync('openid')
+    if (!openid || this.data.hasProfile) return
+
+    const guideKey = `profileGuideShown_${openid}`
+    if (wx.getStorageSync(guideKey)) return
+
+    wx.setStorageSync(guideKey, 1)
+    this.setData({ showProfileGuide: true })
+  },
+
+  closeProfileGuide() {
+    this.setData({ showProfileGuide: false })
+  },
+
+  goMyProfile() {
+    this.setData({ showProfileGuide: false })
+    wx.switchTab({
+      url: '/pages/my/my'
     })
   },
 
   // 加载用户信息
   async loadUserInfo() {
+    const app = getApp()
+    const cachedUserInfo = app.globalData.userInfo
+    if (cachedUserInfo) {
+      this.applyUserInfo(cachedUserInfo)
+    }
+
     try {
       const res = await api.getUserInfo()
       if (res.success) {
-        const data = res.data
-        const now = new Date()
-        const expireAt = parseDateTime(data.vip_expire_at)
-        const isVip = expireAt && expireAt > now
-        const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
-        const userProfile = mergeUserProfile(this.data.userProfile, data)
-        const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
-        const displayAvatarUrl = resolveDisplayAvatarUrl(userProfile.avatarUrl)
-        const app = getApp()
-
-        app.globalData.userProfile = userProfile
-        wx.setStorageSync('userProfile', userProfile)
-
-        this.setData({
-          userInfo: data,
-          userProfile,
-          avatarText,
-          displayAvatarUrl,
-          vipExpireAt: data.vip_expire_at,
-          isVip,
-          remainingDays,
-          loading: false
-        })
+        this.applyUserInfo(res.data)
+        this.maybePromptProfileCompletion()
       }
     } catch (e) {
       console.error('获取用户信息失败', e)
-      this.setData({ loading: false })
+      if (!cachedUserInfo) {
+        this.setData({ loading: false })
+      }
     }
   },
 

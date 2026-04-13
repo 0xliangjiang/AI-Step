@@ -74,8 +74,9 @@ App({
     const openid = wx.getStorageSync('openid')
     if (openid) {
       this.globalData.openid = openid
-      this.getUserInfo()
+      return this.getUserInfo()
     }
+    return Promise.resolve(null)
   },
 
   // 微信登录并获取用户资料
@@ -88,20 +89,22 @@ App({
             return
           }
 
+          const cachedProfile = wx.getStorageSync('userProfile') || null
+          const mergedProfile = cachedProfile ? mergeUserProfile(cachedProfile, null) : null
+
           wx.request({
             url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/wxlogin`,
             method: 'POST',
             data: {
-              code: loginRes.code
+              code: loginRes.code,
+              nickname: mergedProfile ? mergedProfile.nickName : '',
+              avatar_url: mergedProfile ? mergedProfile.avatarUrl : ''
             },
             success: (res) => {
               if (!res.data.success || !res.data.openid) {
                 reject(new Error(res.data.message || '登录失败'))
                 return
               }
-
-              const cachedProfile = wx.getStorageSync('userProfile') || null
-              const mergedProfile = cachedProfile ? mergeUserProfile(cachedProfile, null) : null
 
               this.globalData.openid = res.data.openid
               this.globalData.userProfile = mergedProfile
@@ -112,10 +115,14 @@ App({
               }
               wx.setStorageSync('openid', res.data.openid)
               this.getUserInfo()
-              resolve({
-                openid: res.data.openid,
-                userProfile: mergedProfile
-              })
+                .then((userInfo) => {
+                  resolve({
+                    openid: res.data.openid,
+                    userProfile: this.globalData.userProfile,
+                    userInfo: userInfo || this.globalData.userInfo
+                  })
+                })
+                .catch(reject)
             },
             fail: () => reject(new Error('登录请求失败'))
           })
@@ -136,21 +143,28 @@ App({
 
   // 获取用户信息
   getUserInfo() {
-    if (!this.globalData.openid) return
+    if (!this.globalData.openid) return Promise.resolve(null)
 
-    wx.request({
-      url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/info`,
-      method: 'GET',
-      data: { user_key: this.globalData.openid },
-      success: (res) => {
-        if (res.data.success) {
-          this.globalData.userInfo = res.data.data
-          const mergedProfile = mergeUserProfile(this.globalData.userProfile, res.data.data)
-          this.globalData.userProfile = mergedProfile
-          wx.setStorageSync('userProfile', mergedProfile)
-          this.globalData.vipExpireAt = res.data.data.vip_expire_at
-        }
-      }
+    return new Promise((resolve, reject) => {
+      wx.request({
+        url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/info`,
+        method: 'GET',
+        data: { user_key: this.globalData.openid },
+        success: (res) => {
+          if (res.data.success) {
+            this.globalData.userInfo = res.data.data
+            const mergedProfile = mergeUserProfile(this.globalData.userProfile, res.data.data)
+            this.globalData.userProfile = mergedProfile
+            wx.setStorageSync('userProfile', mergedProfile)
+            this.globalData.vipExpireAt = res.data.data.vip_expire_at
+            resolve(res.data.data)
+            return
+          }
+
+          reject(new Error(res.data.message || '获取用户信息失败'))
+        },
+        fail: () => reject(new Error('获取用户信息失败'))
+      })
     })
   }
 })

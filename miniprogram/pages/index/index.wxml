@@ -49,6 +49,15 @@
     </view>
   </view>
 
+  <view class="profile-guide-card" wx:if="{{showProfileGuide && !hasProfile}}">
+    <view class="profile-guide-title">资料补充后可更快识别你的记录</view>
+    <view class="profile-guide-desc">补充头像和昵称后，首页展示会更完整，也方便后续同步查看。</view>
+    <view class="profile-guide-actions">
+      <button class="profile-guide-btn ghost" bindtap="closeProfileGuide">稍后再说</button>
+      <button class="profile-guide-btn primary" bindtap="goMyProfile">去完善</button>
+    </view>
+  </view>
+
   <!-- 功能特点 -->
   <view class="section">
     <view class="section-header">

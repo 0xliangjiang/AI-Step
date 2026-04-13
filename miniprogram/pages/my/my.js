@@ -76,6 +76,42 @@ Page({
     })
   },
 
+  applyUserInfo(data) {
+    if (!data) return
+
+    const now = new Date()
+    const expireAt = parseDateTime(data.vip_expire_at)
+    const isVip = expireAt && expireAt > now
+    const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
+    const userProfile = mergeUserProfile(this.data.userProfile, data)
+    const displayAvatarUrl = resolveDisplayAvatarUrl(this.data.editAvatarUrl, userProfile.avatarUrl)
+    const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
+    const app = getApp()
+
+    app.globalData.userInfo = data
+    app.globalData.userProfile = {
+      ...userProfile,
+      avatarUrl: displayAvatarUrl
+    }
+    app.globalData.vipExpireAt = data.vip_expire_at
+    wx.setStorageSync('userProfile', app.globalData.userProfile)
+
+    this.setData({
+      userInfo: data,
+      userProfile: app.globalData.userProfile,
+      vipExpireAt: data.vip_expire_at,
+      isVip,
+      remainingDays,
+      loading: false,
+      isLoggedIn: true,
+      hasProfile: !!(userProfile.nickName || displayAvatarUrl),
+      avatarText,
+      displayAvatarUrl,
+      editNickname: userProfile.nickName || '',
+      editAvatarUrl: displayAvatarUrl
+    })
+  },
+
   async loadUserInfo() {
     if (!api.isLoggedIn()) {
       this.setData({
@@ -89,43 +125,22 @@ Page({
       return
     }
 
+    const app = getApp()
+    const cachedUserInfo = app.globalData.userInfo
+    if (cachedUserInfo) {
+      this.applyUserInfo(cachedUserInfo)
+    }
+
     try {
       const res = await api.getUserInfo()
       if (res.success) {
-        const data = res.data
-        const now = new Date()
-        const expireAt = parseDateTime(data.vip_expire_at)
-        const isVip = expireAt && expireAt > now
-        const remainingDays = isVip ? Math.ceil((expireAt - now) / (1000 * 60 * 60 * 24)) : 0
-        const userProfile = mergeUserProfile(this.data.userProfile, data)
-        const displayAvatarUrl = resolveDisplayAvatarUrl(this.data.editAvatarUrl, userProfile.avatarUrl)
-        const avatarText = getAvatarText(userProfile.nickName, this.data.avatarText || '微')
-        const app = getApp()
-
-        app.globalData.userProfile = {
-          ...userProfile,
-          avatarUrl: displayAvatarUrl
-        }
-        wx.setStorageSync('userProfile', app.globalData.userProfile)
-
-        this.setData({
-          userInfo: data,
-          userProfile: app.globalData.userProfile,
-          vipExpireAt: data.vip_expire_at,
-          isVip,
-          remainingDays,
-          loading: false,
-          isLoggedIn: true,
-          hasProfile: !!(userProfile.nickName || displayAvatarUrl),
-          avatarText,
-          displayAvatarUrl,
-          editNickname: userProfile.nickName || '',
-          editAvatarUrl: displayAvatarUrl
-        })
+        this.applyUserInfo(res.data)
       }
     } catch (e) {
       console.error('获取用户信息失败', e)
-      this.setData({ loading: false })
+      if (!cachedUserInfo) {
+        this.setData({ loading: false })
+      }
     }
   },
 
