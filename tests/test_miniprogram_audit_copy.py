@@ -20,8 +20,9 @@ class MiniProgramAuditCopyTests(unittest.TestCase):
 
         self.assertIn('今日记录', index_wxml)
         self.assertIn('记录分析', index_wxml)
-        self.assertIn('登录后可同步保存记录，并查看每一次小进步', index_wxml)
-        self.assertIn('获取更适合你的运动记录参考', index_js)
+        self.assertNotIn('登录后可同步保存记录，并查看每一次小进步', index_wxml)
+        self.assertNotIn('微信一键登录', index_wxml)
+        self.assertNotIn('获取更适合你的运动记录参考', index_js)
 
         self.assertIn('开通会员服务', vip_wxml)
         self.assertIn('把运动记录和同步体验升级', vip_wxml)

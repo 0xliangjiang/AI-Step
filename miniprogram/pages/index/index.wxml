@@ -101,28 +101,3 @@
     <view class="action-tip">今天动一点，也是在认真照顾自己</view>
   </view>
 </view>
-
-<!-- 登录弹窗 -->
-<view class="login-modal-mask" wx:if="{{showLoginModal}}" catchtouchmove="preventTouchMove">
-  <view class="login-modal">
-    <view class="login-modal-header">
-      <text class="login-modal-icon">👋</text>
-      <text class="login-modal-title">欢迎回来，开始今天的轻运动</text>
-      <text class="login-modal-desc">登录后可同步保存记录，并查看每一次小进步</text>
-    </view>
-
-    <view class="login-modal-body">
-      <view class="login-benefit" wx:for="{{loginBenefits}}" wx:key="icon">
-        <text class="login-benefit-icon">{{item.icon}}</text>
-        <text class="login-benefit-text">{{item.text}}</text>
-      </view>
-    </view>
-
-    <view class="login-modal-footer">
-      <button class="login-btn-primary" bindtap="handleLogin" loading="{{loginLoading}}">
-        <text wx:if="{{!loginLoading}}">微信一键登录</text>
-      </button>
-      <button class="login-btn-skip" bindtap="skipLogin">稍后再说</button>
-    </view>
-  </view>
-</view>

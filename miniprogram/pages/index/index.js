@@ -20,15 +20,8 @@ Page({
     isVip: false,
     loading: true,
     reviewMode: false,
-    // 登录弹窗
-    showLoginModal: false,
     showProfileGuide: false,
-    loginLoading: false,
-    loginBenefits: [
-      { icon: '🏃', text: '记录每一次小进步' },
-      { icon: '📊', text: '轻松查看今天和最近的节奏变化' },
-      { icon: '🎯', text: '获取更适合你的运动记录参考' }
-    ]
+    
   },
 
   onLoad() {
@@ -41,58 +34,7 @@ Page({
     this.syncReviewMode()
     this.syncUserProfile()
     this.loadUserInfo()
-    // 检查是否需要显示登录弹窗
-    this.checkShowLoginModal()
   },
-
-  // 检查是否需要显示登录弹窗
-  checkShowLoginModal() {
-    const app = getApp()
-    const isLoggedIn = !!(app.globalData.openid || wx.getStorageSync('openid'))
-    const hasSkippedLogin = wx.getStorageSync('hasSkippedLogin')
-
-    // 未登录且没有跳过过登录，则显示弹窗
-    if (!isLoggedIn && !hasSkippedLogin) {
-      this.setData({ showLoginModal: true })
-    }
-  },
-
-  // 处理登录
-  async handleLogin() {
-    const app = getApp()
-
-    this.setData({ loginLoading: true })
-
-    try {
-      await app.loginWithWechat()
-      this.setData({
-        showLoginModal: false,
-        loginLoading: false
-      })
-      this.syncUserProfile()
-      await this.loadUserInfo()
-      this.maybePromptProfileCompletion()
-      wx.showToast({
-        title: '登录成功',
-        icon: 'success'
-      })
-    } catch (e) {
-      this.setData({ loginLoading: false })
-      wx.showToast({
-        title: e.message || '登录失败',
-        icon: 'none'
-      })
-    }
-  },
-
-  // 跳过登录
-  skipLogin() {
-    wx.setStorageSync('hasSkippedLogin', true)
-    this.setData({ showLoginModal: false })
-  },
-
-  // 阻止触摸穿透
-  preventTouchMove() {},
 
   syncReviewMode() {
     const app = getApp()

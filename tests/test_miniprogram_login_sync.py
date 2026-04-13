@@ -56,6 +56,19 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn('套餐暂时没加载出来', vip_wxml)
         self.assertIn('重新加载', vip_wxml)
 
+    def test_homepage_no_longer_auto_prompts_login_before_browsing(self):
+        index_js = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.js').read_text(encoding='utf-8')
+        index_wxml = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.wxml').read_text(encoding='utf-8')
+
+        self.assertNotIn('checkShowLoginModal()', index_js)
+        self.assertNotIn('showLoginModal', index_js)
+        self.assertNotIn('handleLogin()', index_js)
+        self.assertNotIn('skipLogin()', index_js)
+        self.assertNotIn('loginLoading', index_js)
+        self.assertNotIn('loginBenefits', index_js)
+        self.assertNotIn('login-modal-mask', index_wxml)
+        self.assertNotIn('微信一键登录', index_wxml)
+
 
 if __name__ == '__main__':
     unittest.main()
