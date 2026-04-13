@@ -97,6 +97,49 @@ class AIClientResponseGuardTests(unittest.TestCase):
         self.assertEqual(ai_client_module.ERROR_MESSAGE, result["reply"])
         self.assertIn("no choices returned", result["function_result"]["message"])
 
+    def test_minimax_strips_think_blocks_from_reply(self):
+        with patch("ai_client.requests.post", return_value=FakeResponse({
+            "choices": [
+                {
+                    "message": {
+                        "content": "<think>internal reasoning</think>这是给用户的回复"
+                    }
+                }
+            ]
+        })):
+            result = self.client._chat_minimax(
+                "system prompt",
+                [{"role": "user", "content": "注册"}],
+                "user-1",
+                stealth=False,
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("这是给用户的回复", result["reply"])
+
+    def test_minimax_strips_malformed_think_tags_from_reply(self):
+        with patch("ai_client.requests.post", return_value=FakeResponse({
+            "choices": [
+                {
+                    "message": {
+                        "content": "<think>这是隐藏内容\n这是给用户的回复</think>"
+                    }
+                }
+            ]
+        })):
+            result = self.client._chat_minimax(
+                "system prompt",
+                [{"role": "user", "content": "注册"}],
+                "user-1",
+                stealth=False,
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("", result["reply"])
+
+        cleaned = self.client._sanitize_reply_text("<think>\n这是给用户的回复")
+        self.assertEqual("这是给用户的回复", cleaned)
+
 
 if __name__ == "__main__":
     unittest.main()

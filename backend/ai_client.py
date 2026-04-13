@@ -3,6 +3,7 @@
 AI 模型客户端 - 支持 MiniMax 和 GLM
 """
 import json
+import re
 import traceback
 import requests
 from typing import List, Dict, Any
@@ -104,6 +105,16 @@ class AIClient:
             }
         }
 
+    def _sanitize_reply_text(self, reply: Any) -> str:
+        """清理模型中间推理标签，避免泄露给前端。"""
+        if not isinstance(reply, str):
+            return ""
+
+        cleaned = re.sub(r"<think\b[^>]*>.*?</think>", "", reply, flags=re.IGNORECASE | re.DOTALL)
+        cleaned = re.sub(r"</?think\b[^>]*>", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+        return cleaned.strip()
+
     def _extract_first_choice(self, provider: str, response: requests.Response, data: Dict[str, Any]) -> Dict[str, Any]:
         """校验上游响应并提取首个 choice。"""
         if response.status_code != 200:
@@ -174,7 +185,7 @@ class AIClient:
 
         return {
             "success": True,
-            "reply": message.get("content", ""),
+            "reply": self._sanitize_reply_text(message.get("content", "")),
             "images": []
         }
 
@@ -220,7 +231,7 @@ class AIClient:
 
         return {
             "success": True,
-            "reply": message.get("content", ""),
+            "reply": self._sanitize_reply_text(message.get("content", "")),
             "images": []
         }
 
@@ -246,7 +257,7 @@ class AIClient:
 
         # 构建回复
         images = []
-        reply = result.get("message", "")
+        reply = self._sanitize_reply_text(result.get("message", ""))
 
         # 处理验证码图片
         if result.get("need_captcha") and result.get("captcha_image"):
