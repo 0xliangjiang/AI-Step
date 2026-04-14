@@ -1,4 +1,5 @@
 import unittest
+import json
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -59,6 +60,19 @@ class _FakeTask:
         self.last_error = "old error"
         self.last_error_type = "old_type"
         self.consecutive_failures = 2
+        self.daily_plan = None
+
+    def to_dict(self):
+        return {
+            "user_key": self.user_key,
+            "target_steps": self.target_steps,
+            "start_hour": self.start_hour,
+            "end_hour": self.end_hour,
+            "status": self.status,
+            "current_steps": self.current_steps,
+            "current_step_index": self.current_step_index,
+            "daily_plan": self.daily_plan,
+        }
 
 
 class SchedulerTests(unittest.TestCase):
@@ -136,6 +150,7 @@ class SchedulerTests(unittest.TestCase):
         task.current_steps = 400
         task.current_step_index = 1
         task.last_run_date = "2026-04-13"
+        task.daily_plan = json.dumps([300, 800, 1200], ensure_ascii=False)
         user = _FakeUser(vip_expire_at=datetime(2026, 4, 14, 0, 0, 0))
         db = _FakeDb(user)
 
@@ -162,6 +177,7 @@ class SchedulerTests(unittest.TestCase):
         catch_up_task.current_steps = 400
         catch_up_task.current_step_index = 1
         catch_up_task.last_run_date = "2026-04-13"
+        catch_up_task.daily_plan = json.dumps([300, 800, 1200], ensure_ascii=False)
 
         normal_task = _FakeTask()
         normal_task.target_steps = 1200
@@ -170,6 +186,7 @@ class SchedulerTests(unittest.TestCase):
         normal_task.current_steps = 800
         normal_task.current_step_index = 2
         normal_task.last_run_date = "2026-04-13"
+        normal_task.daily_plan = json.dumps([300, 800, 1200], ensure_ascii=False)
 
         with patch("scheduler.get_beijing_time", return_value=self.fixed_now), patch.object(
             self.scheduler,
@@ -182,6 +199,54 @@ class SchedulerTests(unittest.TestCase):
         messages = [args[0] for args, _ in mock_log.call_args_list]
         self.assertTrue(any("补执行" in message for message in messages))
         self.assertTrue(any("正常执行" in message for message in messages))
+
+    def test_generate_daily_plan_is_front_light_and_back_heavy(self):
+        plan = self.scheduler._generate_daily_plan(target_steps=13000, total_hours=6)
+
+        self.assertEqual(6, len(plan))
+        self.assertEqual(13000, plan[-1])
+        increments = [plan[0]] + [plan[i] - plan[i - 1] for i in range(1, len(plan))]
+        self.assertTrue(all(value > 0 for value in increments))
+        self.assertGreater(sum(increments[3:]), sum(increments[:3]))
+
+    def test_reset_task_for_new_day_generates_fresh_daily_plan(self):
+        task = _FakeTask()
+        task.target_steps = 12000
+        task.start_hour = 8
+        task.end_hour = 14
+
+        with patch("scheduler.random.uniform", side_effect=[0.2, 0.4, 0.6, 0.8, 1.0, 1.2]):
+            self.scheduler._reset_task_for_new_day(task, "2026-04-13")
+
+        self.assertEqual("2026-04-13", task.last_run_date)
+        self.assertIsNotNone(task.daily_plan)
+        plan = json.loads(task.daily_plan)
+        self.assertEqual(6, len(plan))
+        self.assertEqual(12000, plan[-1])
+
+    def test_get_task_detail_uses_saved_daily_plan_for_hourly_breakdown(self):
+        task = _FakeTask()
+        task.target_steps = 1200
+        task.start_hour = 8
+        task.end_hour = 11
+        task.current_steps = 800
+        task.daily_plan = json.dumps([200, 500, 1200], ensure_ascii=False)
+        db = _FakeDb(task)
+
+        with patch("scheduler.get_db_session") as session_mock:
+            session_mock.return_value.__enter__.return_value = db
+            result = self.scheduler.get_task_detail(task.user_key)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(
+            [
+                {"hour": 8, "time": "8:00", "steps_this_hour": 200, "cumulative_steps": 200},
+                {"hour": 9, "time": "9:00", "steps_this_hour": 300, "cumulative_steps": 500},
+                {"hour": 10, "time": "10:00", "steps_this_hour": 700, "cumulative_steps": 1200},
+            ],
+            result["hourly_plan"],
+        )
+        self.assertEqual("800/1200", result["summary"]["current_progress"])
 
     def test_execute_brush_step_retries_retryable_network_failures_up_to_three_times(self):
         user = _FakeUser(vip_expire_at=datetime(2026, 4, 14, 0, 0, 0))

@@ -6,6 +6,8 @@ import time
 import threading
 import math
 import logging
+import json
+import random
 from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.exc import OperationalError
@@ -173,6 +175,7 @@ class StepScheduler:
             return
 
         total_hours = task.end_hour - task.start_hour
+        daily_plan = self._load_daily_plan(task, total_hours)
 
         # 计算当前应该执行到哪个时段
         expected_index = current_hour - task.start_hour
@@ -180,9 +183,6 @@ class StepScheduler:
         # 如果已经执行过当前时段，跳过
         if task.current_step_index > expected_index:
             return
-
-        # 计算基础步数（按总时段平均分配）
-        base_steps_per_hour = math.ceil(task.target_steps / total_hours)
 
         # 每小时扫描一次时，只执行一个时段。
         # 如果前一个应执行时段错过了，优先补最早漏掉的那个。
@@ -196,15 +196,7 @@ class StepScheduler:
                 f"本轮补执行时段 {slot_to_execute + 1}，当前已到时段 {expected_index + 1}"
             )
 
-        # 计算本次应该达到的累计步数
-        # 最后一个时段补齐剩余步数，其他时段按平均值
-        if slot_to_execute == total_hours - 1:
-            target_current_steps = task.target_steps
-        else:
-            # 使用固定平均值，确保稳定递增
-            target_current_steps = (slot_to_execute + 1) * base_steps_per_hour
-            # 不超过目标
-            target_current_steps = min(target_current_steps, task.target_steps)
+        target_current_steps = daily_plan[slot_to_execute]
 
         # 如果当前已经达到或超过本次目标，跳过
         if task.current_steps >= target_current_steps:
@@ -260,6 +252,55 @@ class StepScheduler:
             message=f"{SYNC_LOG_PREFIX}|{status}|{execution_mode}|{detail}"
         ))
 
+    def _generate_daily_plan(self, target_steps: int, total_hours: int):
+        if total_hours <= 0:
+            return [target_steps]
+
+        weights = []
+        for index in range(total_hours):
+            progress = (index + 1) / total_hours
+            base_weight = math.pow(progress, 1.8) * 100
+            jitter = random.uniform(0.65, 1.35)
+            weights.append(max(base_weight * jitter, 1.0))
+
+        total_weight = sum(weights) or 1.0
+        increments = []
+        allocated = 0
+        for index, weight in enumerate(weights):
+            if index == total_hours - 1:
+                increment = target_steps - allocated
+            else:
+                raw_value = target_steps * weight / total_weight
+                increment = max(1, int(round(raw_value)))
+                remaining_slots = total_hours - index - 1
+                max_allowed = target_steps - allocated - remaining_slots
+                increment = min(increment, max_allowed)
+            allocated += increment
+            increments.append(increment)
+
+        cumulative = []
+        running = 0
+        for increment in increments:
+            running += increment
+            cumulative.append(running)
+
+        cumulative[-1] = target_steps
+        return cumulative
+
+    def _load_daily_plan(self, task: ScheduledTask, total_hours: int):
+        if task.daily_plan:
+            try:
+                plan = json.loads(task.daily_plan)
+                if len(plan) == total_hours and plan[-1] == task.target_steps:
+                    return plan
+            except Exception:
+                pass
+
+        plan = self._generate_daily_plan(task.target_steps, total_hours)
+        task.daily_plan = json.dumps(plan, ensure_ascii=False)
+        self.log(f"任务 {task.user_key} 今日随机计划已生成: {plan}")
+        return plan
+
     @staticmethod
     def _is_retryable_brush_message(message: str) -> bool:
         text = (message or "").lower()
@@ -289,8 +330,13 @@ class StepScheduler:
 
     def _reset_task_for_new_day(self, task: ScheduledTask, current_date: str):
         """新的一天重置任务进度与失败状态，避免前一天状态干扰当天执行。"""
+        total_hours = max(task.end_hour - task.start_hour, 1)
         task.current_steps = 0
         task.current_step_index = 0
+        task.daily_plan = json.dumps(
+            self._generate_daily_plan(task.target_steps, total_hours),
+            ensure_ascii=False
+        )
         task.last_run_date = current_date
         task.last_error = ""
         task.last_error_type = ""
@@ -353,6 +399,7 @@ class StepScheduler:
                 existing.status = "active"
                 existing.current_steps = 0
                 existing.current_step_index = 0
+                existing.daily_plan = None
                 existing.last_run_date = None
                 return {
                     "success": True,
@@ -403,25 +450,21 @@ class StepScheduler:
             start_hour = task.start_hour
             end_hour = task.end_hour
             total_hours = end_hour - start_hour
+            daily_plan = self._load_daily_plan(task, total_hours)
 
-            # 生成每小时计划
+            # 生成每小时计划（展示每个时段增量及累计目标）
             hourly_plan = []
-            remaining_steps = target_steps
-            for hour in range(start_hour, end_hour):
-                remaining_slots = end_hour - hour
-                if remaining_slots == 1:
-                    steps_this_hour = remaining_steps
-                else:
-                    steps_this_hour = math.ceil(remaining_steps / remaining_slots)
-
-                cumulative = target_steps - remaining_steps + steps_this_hour
+            previous_cumulative = 0
+            for index, hour in enumerate(range(start_hour, end_hour)):
+                cumulative = daily_plan[index]
+                steps_this_hour = cumulative - previous_cumulative
                 hourly_plan.append({
                     "hour": hour,
                     "time": f"{hour}:00",
                     "steps_this_hour": steps_this_hour,
                     "cumulative_steps": cumulative
                 })
-                remaining_steps -= steps_this_hour
+                previous_cumulative = cumulative
 
             status_text = {"active": "执行中", "paused": "已暂停"}.get(task.status, task.status)
 
@@ -437,9 +480,9 @@ class StepScheduler:
                     "status": status_text,
                     "current_steps": task.current_steps,
                     "current_progress": f"{task.current_steps}/{target_steps}",
-                    "note": "每小时设置累计目标步数（非增量）"
+                    "note": "每天生成前少后多的随机累计目标计划"
                 },
-                "message": f"定时任务详情：每天 {start_hour}:00-{end_hour}:00 刷到 {target_steps} 步，共 {total_hours} 个时段，每小时递增至目标"
+                "message": f"定时任务详情：每天 {start_hour}:00-{end_hour}:00 刷到 {target_steps} 步，共 {total_hours} 个时段，按随机递增计划完成目标"
             }
 
     def update_task(self, user_key: str, target_steps: int = None,

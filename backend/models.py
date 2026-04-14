@@ -103,6 +103,7 @@ class ScheduledTask(Base):
     status = Column(String(20), default="active", comment="状态: active/paused/cancelled")
     current_steps = Column(Integer, default=0, comment="当天已刷步数")
     current_step_index = Column(Integer, default=0, comment="当前执行到第几个时间段")
+    daily_plan = Column(Text, comment="当天的累计目标计划(JSON)")
     last_run_at = Column(DateTime, comment="上次执行时间")
     last_run_date = Column(String(10), comment="上次执行日期 YYYY-MM-DD")
     last_attempt_at = Column(DateTime, comment="上次尝试执行时间")
@@ -123,6 +124,7 @@ class ScheduledTask(Base):
             "status": self.status,
             "current_steps": self.current_steps,
             "current_step_index": self.current_step_index,
+            "daily_plan": self.daily_plan,
             "last_run_at": self.last_run_at.strftime("%Y-%m-%d %H:%M:%S") if self.last_run_at else None,
             "last_run_date": self.last_run_date,
             "last_attempt_at": self.last_attempt_at.strftime("%Y-%m-%d %H:%M:%S") if self.last_attempt_at else None,
@@ -360,6 +362,12 @@ def _ensure_schema_columns():
                 "ALTER TABLE scheduled_tasks "
                 "ADD COLUMN last_attempt_at DATETIME "
                 "COMMENT '上次尝试执行时间'"
+            )
+        if "daily_plan" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN daily_plan TEXT "
+                "COMMENT '当天的累计目标计划(JSON)'"
             )
         if "last_success_at" not in task_columns:
             task_alter_statements.append(
