@@ -759,14 +759,14 @@ class StepSkills:
             app_token = user.get('app_token')
             token_updated_at = user.get('token_updated_at')
             if login_token and app_token and token_updated_at:
-                # Token在24小时内有效
-                from datetime import timedelta
-                if datetime.now() - token_updated_at < timedelta(hours=24):
+                if datetime.now() - token_updated_at < timedelta(hours=1):
                     api.login_token = login_token
                     api.app_token = app_token
                     api.userid = user.get('zepp_userid')
                     need_login = False
                     self._log(f"使用缓存的token，更新时间: {token_updated_at}")
+                else:
+                    self._log(f"缓存token已超过1小时，先重新登录，更新时间: {token_updated_at}")
 
             # 需要重新登录
             if need_login:

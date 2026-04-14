@@ -69,6 +69,29 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertNotIn('login-modal-mask', index_wxml)
         self.assertNotIn('微信一键登录', index_wxml)
 
+    def test_chat_page_only_enforces_login_in_production_mode(self):
+        chat_js = (ROOT / 'miniprogram' / 'pages' / 'chat' / 'chat.js').read_text(encoding='utf-8')
+        chat_wxml = (ROOT / 'miniprogram' / 'pages' / 'chat' / 'chat.wxml').read_text(encoding='utf-8')
+        chat_wxss = (ROOT / 'miniprogram' / 'pages' / 'chat' / 'chat.wxss').read_text(encoding='utf-8')
+
+        self.assertIn('showLoginGate: false', chat_js)
+        self.assertIn('loginLoading: false', chat_js)
+        self.assertIn('checkChatLoginGate()', chat_js)
+        self.assertIn('handleGateLogin()', chat_js)
+        self.assertIn('if (app.isReviewMode()) {', chat_js)
+        self.assertIn('showLoginGate: !app.globalData.openid', chat_js)
+        self.assertNotIn('当前版本暂未开放', chat_js)
+        self.assertNotIn("wx.switchTab({\n          url: '/pages/index/index'\n        })", chat_js)
+
+        self.assertIn('wx:if="{{showLoginGate}}"', chat_wxml)
+        self.assertIn('bindtap="handleGateLogin"', chat_wxml)
+        self.assertIn('登录后可继续查看记录、同步数据和保存历史', chat_wxml)
+        self.assertIn('立即登录', chat_wxml)
+
+        self.assertIn('.login-gate-mask', chat_wxss)
+        self.assertIn('.login-gate-card', chat_wxss)
+        self.assertIn('.login-gate-button', chat_wxss)
+
 
 if __name__ == '__main__':
     unittest.main()

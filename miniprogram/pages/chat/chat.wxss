@@ -554,3 +554,74 @@
   color: #FFFFFF;
   box-shadow: 0 4rpx 16rpx rgba(57, 184, 255, 0.24);
 }
+
+.login-gate-mask {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1200;
+  background: rgba(15, 33, 51, 0.42);
+  backdrop-filter: blur(10rpx);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32rpx;
+}
+
+.login-gate-card {
+  width: 100%;
+  max-width: 620rpx;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, #FFFFFF 100%);
+  border-radius: 36rpx;
+  padding: 44rpx 36rpx 36rpx;
+  box-shadow: 0 24rpx 72rpx rgba(17, 49, 79, 0.2);
+  text-align: center;
+}
+
+.login-gate-badge {
+  width: 108rpx;
+  height: 108rpx;
+  margin: 0 auto 20rpx;
+  border-radius: 30rpx;
+  background: linear-gradient(135deg, #FF8A3D 0%, #39B8FF 100%);
+  color: #FFFFFF;
+  font-size: 46rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16rpx 32rpx rgba(255, 138, 61, 0.24);
+}
+
+.login-gate-title {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #16324F;
+}
+
+.login-gate-desc {
+  margin-top: 14rpx;
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #6C7F90;
+}
+
+.login-gate-button {
+  margin-top: 28rpx;
+  height: 92rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #28C69A 0%, #1FA67F 100%);
+  color: #FFFFFF;
+  font-size: 30rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 28rpx rgba(31, 166, 127, 0.22);
+}
+
+.login-gate-button::after {
+  border: none;
+}

@@ -155,6 +155,8 @@ Page({
     inputText: '',
     loading: false,
     scrollToView: '',
+    showLoginGate: false,
+    loginLoading: false,
     userProfile: null,
     avatarText: '微',
     displayAvatarUrl: '',
@@ -169,21 +171,8 @@ Page({
   },
 
   onLoad() {
-    const app = getApp()
-    if (app.isReviewMode()) {
-      wx.showToast({
-        title: '当前版本暂未开放',
-        icon: 'none'
-      })
-      setTimeout(() => {
-        wx.switchTab({
-          url: '/pages/index/index'
-        })
-      }, 800)
-      return
-    }
-
     this.syncUserProfile()
+    this.checkChatLoginGate()
     // 添加欢迎消息
     this.setData({
       messages: [{
@@ -195,6 +184,23 @@ Page({
 
   onShow() {
     this.syncUserProfile()
+    this.checkChatLoginGate()
+  },
+
+  checkChatLoginGate() {
+    const app = getApp()
+    if (app.isReviewMode()) {
+      this.setData({
+        showLoginGate: false,
+        loginLoading: false
+      })
+      return
+    }
+
+    this.setData({
+      showLoginGate: !app.globalData.openid,
+      loginLoading: false
+    })
   },
 
   syncUserProfile() {
@@ -225,6 +231,8 @@ Page({
 
   // 发送消息
   async sendMessage() {
+    if (this.data.showLoginGate) return
+
     const text = this.data.inputText.trim()
     if (!text || this.data.loading) return
 
@@ -336,6 +344,8 @@ Page({
 
   // 快捷按钮：直接弹出分享弹窗
   openShareModal() {
+    if (this.data.showLoginGate) return
+
     this.setData({
       showShareModal: true,
       inputValue: '',
@@ -426,6 +436,8 @@ Page({
 
   // 分享到微信运动
   async shareToWeRun() {
+    if (this.data.showLoginGate) return
+
     console.log('shareToWeRun 被调用')
     const { selectedSportIndex, selectedUnitIndex, inputValue, sportTypes } = this.data
     const selectedType = sportTypes[selectedSportIndex]
@@ -558,6 +570,8 @@ Page({
 
   // 快捷操作
   quickAction(e) {
+    if (this.data.showLoginGate) return
+
     const action = e.currentTarget.dataset.action
     if (action === 'share_sport') {
       this.openShareModal()
@@ -565,5 +579,33 @@ Page({
     }
 
     this.appendStaticQuickReply(action)
+  },
+
+  async handleGateLogin() {
+    if (this.data.loginLoading) return
+
+    const app = getApp()
+    try {
+      this.setData({ loginLoading: true })
+      wx.showLoading({ title: '登录中...' })
+      await app.loginWithWechat()
+      wx.hideLoading()
+      this.syncUserProfile()
+      this.setData({
+        showLoginGate: false,
+        loginLoading: false
+      })
+      wx.showToast({
+        title: '登录成功',
+        icon: 'success'
+      })
+    } catch (error) {
+      wx.hideLoading()
+      this.setData({ loginLoading: false })
+      wx.showToast({
+        title: error.message || '登录失败',
+        icon: 'none'
+      })
+    }
   }
 })

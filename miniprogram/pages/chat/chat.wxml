@@ -178,4 +178,15 @@
       </view>
     </view>
   </view>
+
+  <view class="login-gate-mask" wx:if="{{showLoginGate}}">
+    <view class="login-gate-card">
+      <view class="login-gate-badge">登</view>
+      <view class="login-gate-title">先登录，再继续记录</view>
+      <view class="login-gate-desc">登录后可继续查看记录、同步数据和保存历史</view>
+      <button class="login-gate-button" bindtap="handleGateLogin" loading="{{loginLoading}}">
+        立即登录
+      </button>
+    </view>
+  </view>
 </view>
