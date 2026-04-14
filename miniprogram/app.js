@@ -82,15 +82,15 @@ App({
   // 微信登录并获取用户资料
   loginWithWechat() {
     return new Promise((resolve, reject) => {
+      const cachedProfile = wx.getStorageSync('userProfile') || null
+      const mergedProfile = cachedProfile ? mergeUserProfile(cachedProfile, null) : null
+
       wx.login({
         success: (loginRes) => {
           if (!loginRes.code) {
             reject(new Error('获取微信登录凭证失败'))
             return
           }
-
-          const cachedProfile = wx.getStorageSync('userProfile') || null
-          const mergedProfile = cachedProfile ? mergeUserProfile(cachedProfile, null) : null
 
           wx.request({
             url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/user/wxlogin`,

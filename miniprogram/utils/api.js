@@ -1,22 +1,37 @@
 // utils/api.js
-const app = getApp()
 
 // API 前缀
 const API_PREFIX = '/api'
+
+function getAppInstance() {
+  try {
+    return getApp() || null
+  } catch (error) {
+    return null
+  }
+}
+
+function getBaseUrl() {
+  const app = getAppInstance()
+  const globalData = (app && app.globalData) || {}
+  return globalData.baseUrl || ''
+}
 
 /**
  * 封装请求方法
  */
 function request(url, method, data) {
   return new Promise((resolve, reject) => {
+    const app = getAppInstance()
+    const globalData = (app && app.globalData) || {}
     // 添加 openid 到请求参数
-    const openid = app.globalData.openid || wx.getStorageSync('openid')
+    const openid = globalData.openid || wx.getStorageSync('openid')
     if (openid) {
       data.user_key = openid
     }
 
     wx.request({
-      url: `${app.globalData.baseUrl}${API_PREFIX}${url}`,
+      url: `${getBaseUrl()}${API_PREFIX}${url}`,
       method: method,
       data: data,
       header: {
@@ -27,7 +42,9 @@ function request(url, method, data) {
           resolve(res.data)
         } else if (res.statusCode === 401) {
           // 未登录，重新登录
-          app.login()
+          if (app && typeof app.loginWithWechat === 'function') {
+            app.loginWithWechat().catch(() => {})
+          }
           reject(new Error('请先登录'))
         } else {
           reject(new Error(res.data.message || '请求失败'))
@@ -46,7 +63,7 @@ function request(url, method, data) {
 function wxLogin(code) {
   return new Promise((resolve, reject) => {
     wx.request({
-      url: `${app.globalData.baseUrl}${API_PREFIX}/user/wxlogin`,
+      url: `${getBaseUrl()}${API_PREFIX}/user/wxlogin`,
       method: 'POST',
       data: { code },
       success: (res) => {
@@ -91,7 +108,9 @@ function checkVip() {
 }
 
 function isLoggedIn() {
-  return !!(app.globalData.openid || wx.getStorageSync('openid'))
+  const app = getAppInstance()
+  const globalData = (app && app.globalData) || {}
+  return !!(globalData.openid || wx.getStorageSync('openid'))
 }
 
 module.exports = {
