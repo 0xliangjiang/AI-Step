@@ -22,6 +22,7 @@ class _FakeFilter:
 class _FakeDb:
     def __init__(self, user):
         self._user = user
+        self.records = []
 
     def query(self, model):
         return self
@@ -29,10 +30,17 @@ class _FakeDb:
     def filter(self, *args, **kwargs):
         return _FakeFilter(self._user)
 
+    def add(self, record):
+        self.records.append(record)
+
 
 class _FakeUser:
     def __init__(self, vip_expire_at):
         self.vip_expire_at = vip_expire_at
+        self.zepp_email = "pool@example.com"
+        self.zepp_password = "secret"
+        self.zepp_userid = "zepp-user-1"
+        self.bind_status = 1
 
 
 class _FakeTask:
@@ -174,6 +182,53 @@ class SchedulerTests(unittest.TestCase):
         messages = [args[0] for args, _ in mock_log.call_args_list]
         self.assertTrue(any("补执行" in message for message in messages))
         self.assertTrue(any("正常执行" in message for message in messages))
+
+    def test_execute_brush_step_retries_retryable_network_failures_up_to_three_times(self):
+        user = _FakeUser(vip_expire_at=datetime(2026, 4, 14, 0, 0, 0))
+        db = _FakeDb(user)
+
+        with patch("scheduler.get_db_session"), patch(
+            "scheduler._bindband_with_retry_scheduler",
+            return_value={"success": True, "message": "ok"},
+        ) as bindband_mock, patch(
+            "scheduler.USE_PROXY_MODE",
+            True,
+        ), patch(
+            "scheduler.USE_PROXY",
+            True,
+        ), patch("scheduler.ZeppAPI") as zepp_mock:
+            scheduler_module.get_db_session.return_value.__enter__.return_value = db
+            result = self.scheduler._execute_brush_step("user-1", 12000)
+
+        self.assertTrue(result["success"])
+        bindband_mock.assert_called_once_with(
+            "pool@example.com",
+            "secret",
+            step=12000,
+            verbose=scheduler_module.APP_DEBUG,
+            use_proxy=False,
+        )
+        zepp_mock.assert_not_called()
+
+    def test_execute_brush_step_does_not_retry_non_retryable_business_failure(self):
+        user = _FakeUser(vip_expire_at=datetime(2026, 4, 14, 0, 0, 0))
+        db = _FakeDb(user)
+
+        with patch("scheduler.get_db_session"), patch(
+            "scheduler._bindband_with_retry_scheduler",
+            return_value={"success": False, "message": "参数无效"},
+        ) as bindband_mock, patch(
+            "scheduler.USE_PROXY_MODE",
+            True,
+        ), patch(
+            "scheduler.USE_PROXY",
+            True,
+        ):
+            scheduler_module.get_db_session.return_value.__enter__.return_value = db
+            result = self.scheduler._execute_brush_step("user-1", 12000)
+
+        self.assertFalse(result["success"])
+        bindband_mock.assert_called_once()
 
 
 if __name__ == "__main__":

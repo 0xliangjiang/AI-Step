@@ -260,6 +260,33 @@ class StepScheduler:
             message=f"{SYNC_LOG_PREFIX}|{status}|{execution_mode}|{detail}"
         ))
 
+    @staticmethod
+    def _is_retryable_brush_message(message: str) -> bool:
+        text = (message or "").lower()
+        retryable_keywords = [
+            "timeout",
+            "timed out",
+            "connection reset",
+            "reset by peer",
+            "awaiting headers",
+            "proxy",
+            "tlsclient",
+            "tls client",
+            "connection aborted",
+            "temporary failure",
+            "temporarily unavailable",
+            "network",
+            "eof",
+        ]
+        return any(keyword in text for keyword in retryable_keywords)
+
+    def _safe_update_step(self, api: ZeppAPI, target_steps: int) -> dict:
+        try:
+            return api.update_step(target_steps)
+        except Exception as e:
+            self.log(f"刷步异常: {e}")
+            return {"success": False, "message": str(e), "error_type": "exception"}
+
     def _reset_task_for_new_day(self, task: ScheduledTask, current_date: str):
         """新的一天重置任务进度与失败状态，避免前一天状态干扰当天执行。"""
         task.current_steps = 0
@@ -277,33 +304,23 @@ class StepScheduler:
                 user = db.query(User).filter(User.user_key == user_key).first()
                 if not user or not user.zepp_email:
                     return {"success": False, "message": "用户未注册设备", "error_type": "user_missing"}
-                if USE_PROXY_MODE and user.bind_status != 1:
+                if user.bind_status != 1:
                     return {"success": False, "message": "用户未完成绑定", "error_type": "bind_status"}
 
-                if USE_PROXY_MODE:
-                    api = ZeppAPI(
-                        user.zepp_email,
-                        user.zepp_password,
-                        verbose=APP_DEBUG,
-                        use_proxy=USE_PROXY
-                    )
-                    api.userid = user.zepp_userid
-                    result = api.update_step(target_steps)
-                else:
-                    result = _bindband_with_retry_scheduler(
-                        user.zepp_email,
-                        user.zepp_password,
-                        step=target_steps,
-                        verbose=APP_DEBUG,
-                        use_proxy=False
-                    )
+                result = _bindband_with_retry_scheduler(
+                    user.zepp_email,
+                    user.zepp_password,
+                    step=target_steps,
+                    verbose=APP_DEBUG,
+                    use_proxy=False
+                )
 
                 if result.get("success", False):
                     return {"success": True, "message": result.get("message", "ok")}
                 return {
                     "success": False,
                     "message": result.get("message", "刷步失败"),
-                    "error_type": "api_error"
+                    "error_type": result.get("error_type", "api_error")
                 }
         except Exception as e:
             self.log(f"刷步异常: {e}")
