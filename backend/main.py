@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, get_db_session
+from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, StepRecord, get_db_session
 from ai_client import ai_client
 from admin import router as admin_router, init_admin
 from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID, REVIEW_MODE
@@ -122,6 +122,12 @@ class UserInfoResponse(BaseModel):
 class PublicConfigResponse(BaseModel):
     success: bool
     data: dict
+
+
+class SyncStatusResponse(BaseModel):
+    success: bool
+    data: Optional[dict] = None
+    message: str = ""
 
 
 @app.on_event("startup")
@@ -309,6 +315,115 @@ async def get_user_info(user_key: str = ""):
             data["remaining_days"] = 0
 
         return UserInfoResponse(success=True, data=data)
+
+
+def _parse_sync_log_message(raw_message: str) -> Dict[str, str]:
+    def sanitize(text: str) -> str:
+        if not text:
+            return ""
+        replacements = {
+            "刷步": "状态更新",
+            "刷到": "更新到",
+            "用户未注册设备": "当前账号还没有完成设备准备",
+            "用户未完成绑定": "当前账号还没有完成设备连接",
+            "刷步失败": "状态更新未完成",
+        }
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+        return text
+
+    if not raw_message:
+        return {
+            "status_text": "状态更新中",
+            "mode_text": "按计划更新",
+            "detail": "最近一次状态记录已生成"
+        }
+
+    if raw_message.startswith("scheduled_sync|"):
+        parts = raw_message.split("|", 3)
+        status = parts[1] if len(parts) > 1 else ""
+        execution_mode = parts[2] if len(parts) > 2 else ""
+        detail = parts[3] if len(parts) > 3 else ""
+        return {
+            "status_text": "已完成" if status == "success" else "稍后重试",
+            "mode_text": "补充更新" if execution_mode == "补执行" else "按计划更新",
+            "detail": sanitize(detail) or ("本次状态已完成更新" if status == "success" else "本次状态暂未完成更新")
+        }
+
+    return {
+        "status_text": "状态更新中",
+        "mode_text": "记录已生成",
+        "detail": sanitize(raw_message)
+    }
+
+
+@app.get("/api/user/sync-status", response_model=SyncStatusResponse)
+async def get_user_sync_status(user_key: str = ""):
+    if not user_key:
+        return SyncStatusResponse(success=False, message="请先登录")
+
+    from scheduler import scheduler, get_beijing_time
+
+    with get_db_session() as db:
+        user = db.query(User).filter(User.user_key == user_key).first()
+        if not user:
+            return SyncStatusResponse(success=False, message="用户不存在")
+
+        task = scheduler.get_task(user_key)
+        log_rows = db.query(StepRecord).filter(
+            StepRecord.user_key == user_key,
+            StepRecord.message.like("scheduled_sync|%")
+        ).order_by(StepRecord.created_at.desc()).limit(10).all()
+
+        next_sync_at = scheduler._next_scan_time(get_beijing_time()).strftime("%Y-%m-%d %H:%M:%S")
+        logs = []
+        for row in log_rows:
+            parsed = _parse_sync_log_message(row.message)
+            logs.append({
+                "status_text": parsed["status_text"],
+                "mode_text": parsed["mode_text"],
+                "detail": parsed["detail"],
+                "steps": row.steps,
+                "created_at": row.created_at.strftime("%Y-%m-%d %H:%M:%S") if row.created_at else None
+            })
+
+        if task:
+            last_result_text = "已完成"
+            if task.get("last_error"):
+                last_result_text = "稍后重试"
+            elif task.get("last_success_at"):
+                last_result_text = "已完成"
+            status_text = {"active": "已开启", "paused": "已暂停"}.get(task.get("status"), "状态更新中")
+            data = {
+                "has_task": True,
+                "status_text": status_text,
+                "last_result_text": last_result_text,
+                "target_steps": task.get("target_steps", 0),
+                "time_range": f"{task.get('start_hour')}:00-{task.get('end_hour')}:00",
+                "current_progress": f"{task.get('current_steps', 0)}/{task.get('target_steps', 0)}",
+                "last_success_at": task.get("last_success_at"),
+                "last_attempt_at": task.get("last_attempt_at"),
+                "last_detail": _parse_sync_log_message(task.get("last_error") or "").get("detail") or "最近一次更新状态正常",
+                "consecutive_failures": task.get("consecutive_failures", 0),
+                "next_sync_at": next_sync_at,
+                "logs": logs
+            }
+            return SyncStatusResponse(success=True, data=data)
+
+        return SyncStatusResponse(success=True, data={
+            "has_task": False,
+            "status_text": "未开启",
+            "last_result_text": "未设置",
+            "target_steps": 0,
+            "time_range": "--",
+            "current_progress": "0/0",
+            "last_success_at": None,
+            "last_attempt_at": None,
+            "last_detail": "当前还没有同步安排",
+            "consecutive_failures": 0,
+            "next_sync_at": next_sync_at,
+            "logs": logs
+        })
 
 
 @app.post("/api/chat", response_model=ChatResponse)

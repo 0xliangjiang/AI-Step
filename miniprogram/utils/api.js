@@ -72,6 +72,10 @@ function updateUserProfile(data) {
   return request('/user/profile', 'POST', data)
 }
 
+function getSyncStatus() {
+  return request('/user/sync-status', 'GET', {})
+}
+
 /**
  * 发送聊天消息
  */
@@ -94,6 +98,7 @@ module.exports = {
   request,
   wxLogin,
   getUserInfo,
+  getSyncStatus,
   updateUserProfile,
   chat,
   checkVip,

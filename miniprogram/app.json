@@ -3,6 +3,7 @@
     "pages/index/index",
     "pages/chat/chat",
     "pages/my/my",
+    "pages/status/status",
     "pages/vip/vip"
   ],
   "requiredPrivateInfos": [

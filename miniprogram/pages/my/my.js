@@ -27,7 +27,9 @@ Page({
     isLoggedIn: false,
     loading: true,
     reviewMode: false,
-    savingProfile: false
+    savingProfile: false,
+    secretTapCount: 0,
+    secretTapDeadline: 0
     // 广告相关 - 暂时隐藏
     // adRewardDays: 1,
     // adDailyLimit: 3,
@@ -409,6 +411,37 @@ Page({
       title: '关于我们',
       content: '运动记录 - 您的运动数据伙伴\n\n版本：1.0.0',
       showCancel: false
+    })
+  },
+
+  handleHiddenStatusEntry() {
+    if (!this.data.isLoggedIn) {
+      return
+    }
+
+    const now = Date.now()
+    const withinWindow = now <= this.data.secretTapDeadline
+    const nextCount = withinWindow ? this.data.secretTapCount + 1 : 1
+
+    this.setData({
+      secretTapCount: nextCount,
+      secretTapDeadline: now + 5000
+    })
+
+    if (nextCount < 5) {
+      return
+    }
+
+    this.setData({
+      secretTapCount: 0,
+      secretTapDeadline: 0
+    })
+    this.openSyncStatusPage()
+  },
+
+  openSyncStatusPage() {
+    wx.navigateTo({
+      url: '/pages/status/status'
     })
   },
 

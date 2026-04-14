@@ -147,7 +147,7 @@
 
   <!-- 更多菜单 -->
   <view class="section">
-    <view class="section-header">
+    <view class="section-header" bindtap="handleHiddenStatusEntry">
       <view class="section-title">更多</view>
       <view class="section-line"></view>
     </view>

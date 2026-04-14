@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.exc import OperationalError
 
-from models import ScheduledTask, User, SessionLocal, get_db_session
+from models import ScheduledTask, User, SessionLocal, get_db_session, StepRecord
 from config import APP_DEBUG, USE_PROXY, USE_PROXY_MODE
 
 # 导入 step_brush
@@ -64,6 +64,8 @@ def _bindband_with_retry_scheduler(email: str, password: str, step: int, verbose
 logger = logging.getLogger(__name__)
 if APP_DEBUG:
     logging.basicConfig(level=logging.DEBUG)
+
+SYNC_LOG_PREFIX = "scheduled_sync"
 
 
 def get_beijing_time() -> datetime:
@@ -227,12 +229,36 @@ class StepScheduler:
             task.last_error = ""
             task.last_error_type = ""
             task.consecutive_failures = 0
+            self._append_sync_record(
+                db=db,
+                task=task,
+                steps=target_current_steps,
+                status="success",
+                execution_mode=execution_mode,
+                detail=f"本次状态已更新至 {target_current_steps} 步"
+            )
             self.log(f"任务 {task.user_key} 刷步成功: 已刷到 {target_current_steps} 步")
         else:
             task.last_error = result.get("message", "未知错误")
             task.last_error_type = result.get("error_type", "brush_step_failed")
             task.consecutive_failures = (task.consecutive_failures or 0) + 1
+            self._append_sync_record(
+                db=db,
+                task=task,
+                steps=target_current_steps,
+                status="failed",
+                execution_mode=execution_mode,
+                detail=task.last_error
+            )
             self.log(f"任务 {task.user_key} 刷步失败: {task.last_error}")
+
+    def _append_sync_record(self, db, task: ScheduledTask, steps: int, status: str, execution_mode: str, detail: str):
+        db.add(StepRecord(
+            user_key=task.user_key,
+            steps=steps,
+            status=status,
+            message=f"{SYNC_LOG_PREFIX}|{status}|{execution_mode}|{detail}"
+        ))
 
     def _reset_task_for_new_day(self, task: ScheduledTask, current_date: str):
         """新的一天重置任务进度与失败状态，避免前一天状态干扰当天执行。"""
