@@ -15,12 +15,13 @@ from config import (
     WX_APPID, WX_MCH_ID, WX_API_KEY, WX_NOTIFY_URL,
     APP_DEBUG
 )
+from time_utils import get_china_now
 
 
 def generate_order_no() -> str:
     """生成订单号"""
     # 时间戳 + 随机数
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    timestamp = get_china_now().strftime("%Y%m%d%H%M%S")
     random_str = uuid.uuid4().hex[:8].upper()
     return f"{timestamp}{random_str}"
 

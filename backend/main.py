@@ -16,6 +16,7 @@ from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_I
 import time
 from collections import defaultdict
 import threading
+from time_utils import get_china_now
 
 app = FastAPI(title="AI智能刷步系统", version="1.0.0")
 
@@ -93,7 +94,7 @@ def save_chat_message(user_key: str, role: str, content: str):
 def cleanup_old_chat_sessions(days: int = 7):
     """清理指定天数前的聊天记录"""
     with get_db_session() as db:
-        cutoff = datetime.now() - timedelta(days=days)
+        cutoff = get_china_now() - timedelta(days=days)
         db.query(ChatSession).filter(ChatSession.created_at < cutoff).delete()
 
 
@@ -168,7 +169,7 @@ async def user_login(request: LoginRequest):
             # 新用户注册
             # 计算会员时间：卡密天数 + 免费天数
             total_days = card.days + FREE_DAYS
-            vip_expire_at = datetime.now() + timedelta(days=total_days)
+            vip_expire_at = get_china_now() + timedelta(days=total_days)
 
             user = User(
                 user_key=user_key,
@@ -179,7 +180,7 @@ async def user_login(request: LoginRequest):
             # 标记卡密为已使用
             card.status = 'used'
             card.used_by = user_key
-            card.used_at = datetime.now()
+            card.used_at = get_china_now()
 
             print(f"[Login] 新用户 {user_key} 注册，卡密充值 {card.days} 天 + 赠送 {FREE_DAYS} 天，共 {total_days} 天会员")
         else:
@@ -252,7 +253,7 @@ async def wx_login(request: WxLoginRequest):
                 user_key=openid,
                 nickname=nickname or None,
                 avatar_url=avatar_url or None,
-                vip_expire_at=datetime.now() + timedelta(days=FREE_DAYS)
+                vip_expire_at=get_china_now() + timedelta(days=FREE_DAYS)
             )
             db.add(user)
             print(f"[WxLogin] 新用户 {openid} 注册，赠送 {FREE_DAYS} 天会员")
@@ -309,7 +310,7 @@ async def get_user_info(user_key: str = ""):
         data = user.to_dict()
         # 计算剩余天数
         if user.vip_expire_at:
-            remaining = (user.vip_expire_at - datetime.now()).days
+            remaining = (user.vip_expire_at - get_china_now()).days
             data["remaining_days"] = max(0, remaining)
         else:
             data["remaining_days"] = 0
@@ -812,7 +813,7 @@ async def payment_notify(request: Request):
             return Response(content=wechat_pay.fail_response("金额不匹配"), media_type="application/xml")
 
         # 原子更新订单状态，确保并发场景下只有一个请求能完成最终入账
-        paid_at = datetime.now()
+        paid_at = get_china_now()
         updated_rows = db.query(PaymentOrder).filter(
             PaymentOrder.id == order.id,
             PaymentOrder.status == "pending"
@@ -832,10 +833,10 @@ async def payment_notify(request: Request):
         # 增加用户会员时间
         user = db.query(User).filter(User.user_key == order.user_key).first()
         if user:
-            if user.vip_expire_at and user.vip_expire_at > datetime.now():
+            if user.vip_expire_at and user.vip_expire_at > get_china_now():
                 user.vip_expire_at = user.vip_expire_at + timedelta(days=order.days)
             else:
-                user.vip_expire_at = datetime.now() + timedelta(days=order.days)
+                user.vip_expire_at = get_china_now() + timedelta(days=order.days)
 
             print(f"[Payment] 支付成功(回调): {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
 

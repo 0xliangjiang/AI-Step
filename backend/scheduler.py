@@ -21,6 +21,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from step_brush import ZeppAPI
 from step_brush import bindband
+from time_utils import get_china_now
 
 # 重试装饰器
 def retry_on_failure(max_retries: int = 3, delay: float = 1.0, backoff: float = 2.0):
@@ -72,7 +73,7 @@ SYNC_LOG_PREFIX = "scheduled_sync"
 
 def get_beijing_time() -> datetime:
     """获取北京时间（UTC+8）"""
-    return datetime.utcnow() + timedelta(hours=8)
+    return get_china_now()
 
 
 class StepScheduler:

@@ -17,6 +17,7 @@ import math
 import requests
 import base64
 from io import BytesIO
+from time_utils import get_china_today_str, get_china_timestamp_ms
 
 try:
     from Crypto.Cipher import AES
@@ -987,8 +988,8 @@ class ZeppAPI:
             if not login_result['success']:
                 return {'success': False, 'step': step, 'message': login_result['message']}
 
-        today = time.strftime("%Y-%m-%d")
-        t = str(int(time.time() * 1000))
+        today = get_china_today_str()
+        t = str(get_china_timestamp_ms())
         self.log(f"[步骤4] 日期: {today}, 时间戳: {t}")
 
         data_json = self._build_data_json(step, today)

@@ -7,6 +7,7 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, create_engine, i
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from config import DATABASE_URL
+from time_utils import get_china_now
 
 Base = declarative_base()
 
@@ -18,7 +19,7 @@ class Admin(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, comment="用户名")
     password = Column(String(255), nullable=False, comment="密码哈希")
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
 
     def to_dict(self):
         return {
@@ -45,14 +46,14 @@ class User(Base):
     login_token = Column(Text, comment="登录Token缓存")
     app_token = Column(Text, comment="App Token缓存")
     token_updated_at = Column(DateTime, comment="Token更新时间")
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
+    updated_at = Column(DateTime, default=get_china_now, onupdate=get_china_now)
 
     def to_dict(self):
         # 判断会员是否有效
         is_vip = False
         if self.vip_expire_at:
-            is_vip = self.vip_expire_at > datetime.now()
+            is_vip = self.vip_expire_at > get_china_now()
 
         return {
             "id": self.id,
@@ -78,7 +79,7 @@ class StepRecord(Base):
     steps = Column(Integer, nullable=False)
     status = Column(String(20), comment="success/failed")
     message = Column(Text)
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
 
     def to_dict(self):
         return {
@@ -111,8 +112,8 @@ class ScheduledTask(Base):
     last_error = Column(Text, comment="最近一次失败原因")
     last_error_type = Column(String(50), comment="最近一次失败类型")
     consecutive_failures = Column(Integer, default=0, comment="连续失败次数")
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
+    updated_at = Column(DateTime, default=get_china_now, onupdate=get_china_now)
 
     def to_dict(self):
         return {
@@ -147,7 +148,7 @@ class Card(Base):
     status = Column(String(20), default="unused", comment="状态: unused/used")
     used_by = Column(String(100), comment="使用者user_key")
     used_at = Column(DateTime, comment="使用时间")
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
 
     def to_dict(self):
         return {
@@ -169,7 +170,7 @@ class ChatSession(Base):
     user_key = Column(String(100), nullable=False, index=True, comment="用户标识")
     role = Column(String(20), nullable=False, comment="角色: user/assistant")
     content = Column(Text, nullable=False, comment="消息内容")
-    created_at = Column(DateTime, default=datetime.now, index=True)
+    created_at = Column(DateTime, default=get_china_now, index=True)
 
     def to_dict(self):
         return {
@@ -189,7 +190,7 @@ class AdWatch(Base):
     user_key = Column(String(100), nullable=False, index=True, comment="用户标识")
     watch_date = Column(String(10), nullable=False, index=True, comment="观看日期 YYYY-MM-DD")
     reward_days = Column(Integer, default=1, comment="奖励天数")
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
 
     def to_dict(self):
         return {
@@ -209,7 +210,7 @@ class SystemConfig(Base):
     config_key = Column(String(50), unique=True, nullable=False, comment="配置键")
     config_value = Column(String(255), nullable=False, comment="配置值")
     description = Column(String(255), comment="配置描述")
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    updated_at = Column(DateTime, default=get_china_now, onupdate=get_china_now)
 
     def to_dict(self):
         return {
@@ -232,8 +233,8 @@ class VipPackage(Base):
     original_price = Column(Integer, comment="原价（分）")
     sort_order = Column(Integer, default=0, comment="排序")
     status = Column(Integer, default=1, comment="状态: 0禁用 1启用")
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
+    updated_at = Column(DateTime, default=get_china_now, onupdate=get_china_now)
 
     def to_dict(self):
         return {
@@ -264,8 +265,8 @@ class PaymentOrder(Base):
     prepay_id = Column(String(64), comment="预支付ID")
     transaction_id = Column(String(32), comment="微信支付订单号")
     paid_at = Column(DateTime, comment="支付时间")
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=get_china_now)
+    updated_at = Column(DateTime, default=get_china_now, onupdate=get_china_now)
 
     def to_dict(self):
         return {

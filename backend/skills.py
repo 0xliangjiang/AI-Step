@@ -25,6 +25,7 @@ from config import (
     CAPTCHA_RETRY_TIMES, MIN_STEPS, MAX_STEPS, ERROR_MESSAGE,
     APP_DEBUG, USE_PROXY, USE_PROXY_MODE, CAPTCHA_PENDING_EXPIRE
 )
+from time_utils import get_china_now
 
 
 def retry_on_failure(max_retries: int = 3, delay: float = 1.0, backoff: float = 2.0):
@@ -405,7 +406,7 @@ class StepSkills:
                         if api.login_token and api.app_token:
                             db_user.login_token = api.login_token
                             db_user.app_token = api.app_token
-                            db_user.token_updated_at = datetime.now()
+                            db_user.token_updated_at = get_china_now()
                     else:
                         # 不存在用户：新建
                         db_user = User(
@@ -416,7 +417,7 @@ class StepSkills:
                             bind_status=0,
                             login_token=api.login_token if api.login_token else None,
                             app_token=api.app_token if api.app_token else None,
-                            token_updated_at=datetime.now() if (api.login_token and api.app_token) else None
+                            token_updated_at=get_china_now() if (api.login_token and api.app_token) else None
                         )
                         db.add(db_user)
             except Exception as e:
@@ -493,7 +494,7 @@ class StepSkills:
                 if db_user:
                     db_user.login_token = login_token
                     db_user.app_token = app_token
-                    db_user.token_updated_at = datetime.now()
+                    db_user.token_updated_at = get_china_now()
         except Exception as e:
             self._log(f"缓存token失败 user_key={user_key}: {e}")
 
@@ -814,7 +815,7 @@ class StepSkills:
 
         # 检查会员状态
         vip_expire_at = user.get('vip_expire_at')
-        if not vip_expire_at or vip_expire_at < datetime.now():
+        if not vip_expire_at or vip_expire_at < get_china_now():
             return {'success': False, 'message': '您的会员已过期，请充值后继续使用。回复"充值"了解详情。'}
 
         result = _bindband_with_retry(
@@ -854,8 +855,8 @@ class StepSkills:
             return {'success': False, 'is_vip': False, 'message': '用户不存在'}
 
         vip_expire_at = user.get('vip_expire_at')
-        if vip_expire_at and vip_expire_at > datetime.now():
-            remaining_days = (vip_expire_at - datetime.now()).days
+        if vip_expire_at and vip_expire_at > get_china_now():
+            remaining_days = (vip_expire_at - get_china_now()).days
             return {
                 'success': True,
                 'is_vip': True,
@@ -889,10 +890,10 @@ class StepSkills:
                     return {'success': False, 'message': '用户不存在，请先登录'}
 
                 # 计算新的过期时间
-                if user.vip_expire_at and user.vip_expire_at > datetime.now():
+                if user.vip_expire_at and user.vip_expire_at > get_china_now():
                     new_expire = user.vip_expire_at + timedelta(days=card.days)
                 else:
-                    new_expire = datetime.now() + timedelta(days=card.days)
+                    new_expire = get_china_now() + timedelta(days=card.days)
 
                 # 更新用户会员时间
                 user.vip_expire_at = new_expire
@@ -900,7 +901,7 @@ class StepSkills:
                 # 标记卡密为已使用
                 card.status = 'used'
                 card.used_by = user_key
-                card.used_at = datetime.now()
+                card.used_at = get_china_now()
 
                 return {
                     'success': True,

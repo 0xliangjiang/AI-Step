@@ -16,6 +16,7 @@ from sqlalchemy import func
 
 from models import Admin, User, StepRecord, SessionLocal, init_db, get_db_session, ScheduledTask, Card, SystemConfig, VipPackage, PaymentOrder
 from config import ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_SECRET_KEY, APP_DEBUG, AD_REWARD_DAYS, AD_DAILY_LIMIT
+from time_utils import get_china_date, get_china_day_start
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -384,8 +385,8 @@ class StatsResponse(BaseModel):
 async def get_stats(_: str = Depends(verify_token)):
     """获取统计数据"""
     with get_db_session() as db:
-        today = datetime.now().date()
-        today_start = datetime.combine(today, datetime.min.time())
+        today = get_china_date()
+        today_start = get_china_day_start(today)
 
         # 用户统计
         total_users = db.query(User).count()
