@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r req
 
 # 复制项目文件
 COPY step_brush.py .
+COPY time_utils.py .
 COPY backend ./backend
 
 # 设置工作目录

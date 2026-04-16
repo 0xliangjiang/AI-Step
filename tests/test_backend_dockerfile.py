@@ -12,6 +12,10 @@ class BackendDockerfileTests(unittest.TestCase):
         self.assertIn("https://mirrors.tuna.tsinghua.edu.cn/debian", dockerfile)
         self.assertIn("https://mirrors.tuna.tsinghua.edu.cn/debian-security", dockerfile)
 
+    def test_backend_dockerfile_copies_shared_time_utils_module(self):
+        dockerfile = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
+        self.assertIn("COPY time_utils.py .", dockerfile)
+
 
 if __name__ == "__main__":
     unittest.main()
