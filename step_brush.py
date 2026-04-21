@@ -43,6 +43,8 @@ try:
 except ImportError:
     TLS_CLIENT_AVAILABLE = False
 
+NETWORK_TIMEOUT_SECONDS = 120
+
 # 尝试从配置加载AES密钥
 try:
     from backend.config import ZEPP_AES_KEY, ZEPP_AES_IV
@@ -358,7 +360,7 @@ class ZeppAPI:
             self.log(f"登录数据加密完成, 长度: {len(cipher_data)}")
 
             self.log(f"[步骤1] 请求: POST {url1}")
-            r1 = self._request("POST", url1, data=cipher_data, headers=headers1, allow_redirects=False, timeout=15)
+            r1 = self._request("POST", url1, data=cipher_data, headers=headers1, allow_redirects=False, timeout=NETWORK_TIMEOUT_SECONDS)
             self.log(f"[步骤1] 响应状态码: {r1.status_code}")
 
             if r1.status_code != 303:
@@ -417,7 +419,7 @@ class ZeppAPI:
                 }
 
             self.log(f"[步骤2] 请求: POST {url2}")
-            r2 = self._request("POST", url2, data=data2, headers=headers2, timeout=15)
+            r2 = self._request("POST", url2, data=data2, headers=headers2, timeout=NETWORK_TIMEOUT_SECONDS)
             self.log(f"[步骤2] 响应状态码: {r2.status_code}")
             self.log(f"[步骤2] 响应内容: {r2.text[:500]}")
             r2_json = r2.json()
@@ -460,7 +462,7 @@ class ZeppAPI:
             headers, fake_ip3 = self._add_spoof_ip_headers(headers)
             self.log(f"[步骤3] 伪装IP: {fake_ip3}")
         self.log(f"[步骤3] 请求: GET app_token")
-        response = self._request("GET", url, headers=headers, timeout=15)
+        response = self._request("GET", url, headers=headers, timeout=NETWORK_TIMEOUT_SECONDS)
         self.log(f"[步骤3] 响应状态码: {response.status_code}")
         resp_json = response.json()
         app_token = resp_json['token_info']['app_token']
@@ -649,7 +651,7 @@ class ZeppAPI:
                 url1,
                 data=urllib.parse.urlencode(data1),
                 headers=headers,
-                timeout=15,
+                timeout=NETWORK_TIMEOUT_SECONDS,
                 max_retries=5
             )
             self.log(f"[注册步骤1] 状态码: {response1.status_code}")
@@ -688,7 +690,7 @@ class ZeppAPI:
                 url2,
                 data=urllib.parse.urlencode(data2),
                 headers=headers,
-                timeout=15,
+                timeout=NETWORK_TIMEOUT_SECONDS,
                 max_retries=3
             )
             self.log(f"[注册步骤2] 状态码: {response2.status_code}")
@@ -868,7 +870,7 @@ class ZeppAPI:
             self.log(f"部署key: {'*' * max(0, len(apikey) - 6)}{apikey[-6:]}")
 
             # 绑定接口强制走普通 requests 直连，不使用代理与 TLS 指纹
-            response = requests.get(url, params=params, timeout=30)
+            response = requests.get(url, params=params, timeout=NETWORK_TIMEOUT_SECONDS)
             self.log(f"完整请求URL: {response.url}")
             self.log(f"响应状态码: {response.status_code}")
             self.log(f"响应内容: {response.text}")
@@ -1004,7 +1006,7 @@ class ZeppAPI:
         data = f'userid={self.userid}&last_sync_data_time=1597306380&device_type=0&last_deviceid=DA932FFFFE8816E7&data_json={data_json}'
         self.log(f"[步骤4] 请求: POST {url}")
 
-        response = self._request("POST", url, data=data, headers=headers, timeout=15)
+        response = self._request("POST", url, data=data, headers=headers, timeout=NETWORK_TIMEOUT_SECONDS)
         self.log(f"[步骤4] 响应状态码: {response.status_code}")
         self.log(f"[步骤4] 响应内容: {response.text}")
 

@@ -3,9 +3,9 @@ const { mergeUserProfile } = require('./utils/profile')
 
 const API_BASE_URLS = {
   // 微信开发者工具 / 开发版
-  develop: 'https://aistep.discordbot.cn',
+  develop: 'https://aistep.7777c.cn',
   // 正式版
-  release: 'https://aistep.discordbot.cn'
+  release: 'https://aistep.7777c.cn'
 }
 
 function resolveBaseUrl() {

@@ -292,6 +292,13 @@
   align-items: center;
 }
 
+.typing-text {
+  margin-top: 14rpx;
+  color: #6B7A90;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
 .dot {
   width: 12rpx;
   height: 12rpx;

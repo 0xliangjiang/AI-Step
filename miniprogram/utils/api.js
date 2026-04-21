@@ -2,7 +2,6 @@
 
 // API 前缀
 const API_PREFIX = '/api'
-
 function getAppInstance() {
   try {
     return getApp() || null
@@ -33,6 +32,7 @@ function request(url, method, data) {
     wx.request({
       url: `${getBaseUrl()}${API_PREFIX}${url}`,
       method: method,
+      timeout: 120000,
       data: data,
       header: {
         'content-type': 'application/json'
@@ -65,6 +65,7 @@ function wxLogin(code) {
     wx.request({
       url: `${getBaseUrl()}${API_PREFIX}/user/wxlogin`,
       method: 'POST',
+      timeout: 120000,
       data: { code },
       success: (res) => {
         if (res.data.success) {

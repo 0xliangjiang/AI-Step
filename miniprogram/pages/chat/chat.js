@@ -154,6 +154,7 @@ Page({
     messages: [],
     inputText: '',
     loading: false,
+    loadingHint: '正在处理中，一般会在 2 分钟内返回',
     scrollToView: '',
     showLoginGate: false,
     loginLoading: false,
@@ -259,7 +260,8 @@ Page({
     this.setData({
       messages,
       inputText: '',
-      loading: true
+      loading: true,
+      loadingHint: '正在处理中，一般会在 2 分钟内返回'
     })
 
     this.scrollToBottom()

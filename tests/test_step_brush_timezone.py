@@ -19,6 +19,12 @@ class _FakeResponse:
 
 
 class StepBrushTimezoneTests(unittest.TestCase):
+    def test_core_network_calls_use_two_minute_timeout_budget(self):
+        source = (ROOT / "step_brush.py").read_text(encoding="utf-8")
+
+        self.assertIn("NETWORK_TIMEOUT_SECONDS = 120", source)
+        self.assertIn('timeout=NETWORK_TIMEOUT_SECONDS', source)
+
     def test_update_step_uses_china_date_instead_of_process_local_date(self):
         api = step_brush.ZeppAPI(verbose=False, use_tls=False)
         api.userid = "user-1"

@@ -170,7 +170,7 @@ class AIClient:
             payload["tools"] = [{"type": "function", "function": f} for f in FUNCTIONS]
             payload["tool_choice"] = "auto"
 
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response = requests.post(url, headers=headers, json=payload, timeout=120)
         data = response.json()
         choice = self._extract_first_choice("MiniMax", response, data)
         if isinstance(choice, dict) and "success" in choice:
@@ -216,7 +216,7 @@ class AIClient:
             payload["tools"] = [{"type": "function", "function": f} for f in FUNCTIONS]
             payload["tool_choice"] = "auto"
 
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response = requests.post(url, headers=headers, json=payload, timeout=120)
         data = response.json()
         choice = self._extract_first_choice("GLM", response, data)
         if isinstance(choice, dict) and "success" in choice:

@@ -29,6 +29,13 @@ class MiniProgramProfileCopyTests(unittest.TestCase):
         self.assertIn('displayAvatarUrl', chat_js)
         self.assertIn('onAvatarError()', chat_js)
 
+    def test_chat_loading_state_shows_processing_hint(self):
+        chat_js = (ROOT / 'miniprogram' / 'pages' / 'chat' / 'chat.js').read_text(encoding='utf-8')
+        chat_wxml = (ROOT / 'miniprogram' / 'pages' / 'chat' / 'chat.wxml').read_text(encoding='utf-8')
+
+        self.assertIn("loadingHint: '正在处理中，一般会在 2 分钟内返回'", chat_js)
+        self.assertIn('{{loadingHint}}', chat_wxml)
+
     def test_home_and_vip_copy_uses_friendly_neutral_wording(self):
         index_wxml = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.wxml').read_text(encoding='utf-8')
         vip_wxml = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxml').read_text(encoding='utf-8')

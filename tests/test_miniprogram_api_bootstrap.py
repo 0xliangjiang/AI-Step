@@ -14,6 +14,11 @@ class MiniProgramApiBootstrapTests(unittest.TestCase):
         self.assertIn('const app = getAppInstance()', api_js)
         self.assertIn("const globalData = (app && app.globalData) || {}", api_js)
 
+    def test_api_requests_allow_two_minute_timeout(self):
+        api_js = (ROOT / 'miniprogram' / 'utils' / 'api.js').read_text(encoding='utf-8')
+
+        self.assertIn('timeout: 120000', api_js)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -58,6 +58,7 @@ class AIClientResponseGuardTests(unittest.TestCase):
         self.assertEqual("system prompt", payload["messages"][0]["content"])
         self.assertEqual("user", payload["messages"][1]["role"])
         self.assertEqual("注册", payload["messages"][1]["content"])
+        self.assertEqual(120, call_args.kwargs["timeout"])
 
     def test_minimax_handles_none_choices_without_crashing(self):
         with patch("ai_client.requests.post", return_value=FakeResponse({
