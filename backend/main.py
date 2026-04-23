@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from models import init_db, User, Card, SessionLocal, ChatSession, AdWatch, SystemConfig, VipPackage, PaymentOrder, StepRecord, get_db_session
 from ai_client import ai_client
+from chat_card import find_matching_card_key
+from skills import skills
 from admin import router as admin_router, init_admin
 from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID, REVIEW_MODE
 import time
@@ -442,6 +444,21 @@ async def chat(request: ChatRequest):
     # 限流检查
     if not rate_limiter.is_allowed(user_key):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
+
+    direct_card_key = find_matching_card_key(message)
+    if direct_card_key:
+        result = skills.use_card(user_key, direct_card_key)
+        reply = result.get("message", "")
+
+        save_chat_message(user_key, "user", message)
+        save_chat_message(user_key, "assistant", reply)
+
+        return ChatResponse(
+            success=result.get("success", False),
+            reply=reply,
+            images=[],
+            function_result=result
+        )
 
     # 从数据库获取用户历史消息
     messages = get_user_chat_history(user_key, limit=20)
