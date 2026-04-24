@@ -321,6 +321,11 @@ def init_db():
     _ensure_schema_columns()
 
 
+def ensure_runtime_schema():
+    """对外暴露 schema 自愈入口，供运行期按需修复旧库结构。"""
+    _ensure_schema_columns()
+
+
 def _ensure_schema_columns():
     """轻量级 schema 补丁，兼容已有库缺字段场景"""
     inspector = inspect(engine)

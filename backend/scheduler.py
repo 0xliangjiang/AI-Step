@@ -12,7 +12,7 @@ from datetime import datetime, date, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.exc import OperationalError
 
-from models import ScheduledTask, User, SessionLocal, get_db_session, StepRecord
+from models import ScheduledTask, User, SessionLocal, get_db_session, StepRecord, ensure_runtime_schema
 from config import APP_DEBUG, USE_PROXY, USE_PROXY_MODE
 
 # 导入 step_brush
@@ -88,6 +88,10 @@ class StepScheduler:
             logger.debug(f"[Scheduler] {msg}")
             print(f"[Scheduler] {msg}")
 
+    def _ensure_scheduled_tasks_schema(self):
+        """在查询定时任务前先修复旧库结构，避免老表缺列直接炸掉。"""
+        ensure_runtime_schema()
+
     def start(self):
         """启动调度器"""
         if self.running:
@@ -140,6 +144,7 @@ class StepScheduler:
 
         for attempt in range(max_retries):
             try:
+                self._ensure_scheduled_tasks_schema()
                 with get_db_session() as db:
                     # 查找所有活跃的定时任务
                     tasks = db.query(ScheduledTask).filter(
@@ -378,6 +383,7 @@ class StepScheduler:
     def create_task(self, user_key: str, target_steps: int,
                    start_hour: int = 8, end_hour: int = 21) -> dict:
         """创建定时任务"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             # 检查用户是否可执行刷步
             user = db.query(User).filter(User.user_key == user_key).first()
@@ -427,6 +433,7 @@ class StepScheduler:
 
     def get_task(self, user_key: str) -> Optional[Dict[str, Any]]:
         """获取用户的定时任务"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
@@ -437,6 +444,7 @@ class StepScheduler:
 
     def get_task_detail(self, user_key: str) -> dict:
         """获取定时任务详情，包含每小时刷步计划"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
@@ -489,6 +497,7 @@ class StepScheduler:
     def update_task(self, user_key: str, target_steps: int = None,
                    start_hour: int = None, end_hour: int = None) -> dict:
         """更新定时任务"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
@@ -513,6 +522,7 @@ class StepScheduler:
 
     def pause_task(self, user_key: str) -> dict:
         """暂停定时任务"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
@@ -528,6 +538,7 @@ class StepScheduler:
 
     def resume_task(self, user_key: str) -> dict:
         """恢复定时任务"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
@@ -543,6 +554,7 @@ class StepScheduler:
 
     def cancel_task(self, user_key: str) -> dict:
         """取消定时任务"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             task = db.query(ScheduledTask).filter(
                 ScheduledTask.user_key == user_key,
@@ -558,6 +570,7 @@ class StepScheduler:
 
     def get_all_active_tasks(self) -> list:
         """获取所有活跃任务（后台管理用）"""
+        self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             tasks = db.query(ScheduledTask).filter(
                 ScheduledTask.status.in_(["active", "paused"])

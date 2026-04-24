@@ -77,6 +77,9 @@ class _FakeTask:
 
 class SchedulerTests(unittest.TestCase):
     def setUp(self):
+        self.schema_patch = patch.object(scheduler_module, "ensure_runtime_schema", return_value=None)
+        self.schema_patch.start()
+        self.addCleanup(self.schema_patch.stop)
         self.scheduler = scheduler_module.StepScheduler()
         self.fixed_now = datetime(2026, 4, 13, 10, 0, 0)
 
@@ -247,6 +250,19 @@ class SchedulerTests(unittest.TestCase):
             result["hourly_plan"],
         )
         self.assertEqual("800/1200", result["summary"]["current_progress"])
+
+    def test_get_task_repairs_schema_before_querying(self):
+        task = _FakeTask()
+        db = _FakeDb(task)
+
+        with patch("scheduler.ensure_runtime_schema") as ensure_mock, patch(
+            "scheduler.get_db_session"
+        ) as session_mock:
+            session_mock.return_value.__enter__.return_value = db
+            result = self.scheduler.get_task(task.user_key)
+
+        ensure_mock.assert_called_once()
+        self.assertEqual(task.to_dict(), result)
 
     def test_execute_brush_step_retries_retryable_network_failures_up_to_three_times(self):
         user = _FakeUser(vip_expire_at=datetime(2026, 4, 14, 0, 0, 0))
