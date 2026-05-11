@@ -56,6 +56,17 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn('套餐暂时没加载出来', vip_wxml)
         self.assertIn('重新加载', vip_wxml)
 
+    def test_payment_success_confirms_backend_settlement_before_navigating(self):
+        vip_js = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.js').read_text(encoding='utf-8')
+
+        self.assertIn("res.order_no", vip_js)
+        self.assertIn("api.request(`/pay/query/${orderNo}`", vip_js)
+        self.assertIn("queryRes.status === 'paid'", vip_js)
+        self.assertIn("const orderNo = res.order_no", vip_js)
+        self.assertIn("await this.confirmPaymentSettled(orderNo)", vip_js)
+        self.assertIn("title: '支付已到账'", vip_js)
+        self.assertIn("title: '支付处理中'", vip_js)
+
     def test_homepage_no_longer_auto_prompts_login_before_browsing(self):
         index_js = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.js').read_text(encoding='utf-8')
         index_wxml = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.wxml').read_text(encoding='utf-8')

@@ -3,6 +3,8 @@ const api = require('../../utils/api')
 
 const PACKAGE_CACHE_KEY = 'vipPackagesCache'
 const PACKAGE_ENDPOINTS = ['/membership/options', '/vip/packages', '/packages']
+const PAYMENT_QUERY_MAX_ATTEMPTS = 4
+const PAYMENT_QUERY_INTERVAL_MS = 1200
 
 Page({
   data: {
@@ -119,6 +121,29 @@ Page({
     this.setData({ selectedPackage: pkg })
   },
 
+  wait(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  },
+
+  async confirmPaymentSettled(orderNo) {
+    if (!orderNo) {
+      return false
+    }
+
+    for (let attempt = 0; attempt < PAYMENT_QUERY_MAX_ATTEMPTS; attempt += 1) {
+      if (attempt > 0) {
+        await this.wait(PAYMENT_QUERY_INTERVAL_MS)
+      }
+
+      const queryRes = await api.request(`/pay/query/${orderNo}`, 'GET', {})
+      if (queryRes.success && queryRes.status === 'paid') {
+        return true
+      }
+    }
+
+    return false
+  },
+
   async createOrder() {
     const pkg = this.data.selectedPackage
     if (!pkg) {
@@ -140,6 +165,7 @@ Page({
         return
       }
 
+      const orderNo = res.order_no
       // 调用微信支付
       const payParams = res.pay_params
       await wx.requestPayment({
@@ -150,8 +176,12 @@ Page({
         paySign: payParams.paySign
       })
 
-      // 支付成功
-      wx.showToast({ title: '支付成功', icon: 'success' })
+      const settled = await this.confirmPaymentSettled(orderNo)
+      if (settled) {
+        wx.showToast({ title: '支付已到账', icon: 'success' })
+      } else {
+        wx.showToast({ title: '支付处理中', icon: 'none' })
+      }
 
       // 刷新页面
       setTimeout(() => {
