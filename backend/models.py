@@ -99,6 +99,8 @@ class ScheduledTask(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_key = Column(String(100), nullable=False, index=True, comment="用户标识")
     target_steps = Column(Integer, nullable=False, comment="目标步数")
+    min_target_steps = Column(Integer, comment="每日目标步数下限")
+    max_target_steps = Column(Integer, comment="每日目标步数上限")
     start_hour = Column(Integer, default=8, comment="开始时间（小时，0-23）")
     end_hour = Column(Integer, default=21, comment="结束时间（小时，0-23）")
     status = Column(String(20), default="active", comment="状态: active/paused/cancelled")
@@ -120,6 +122,8 @@ class ScheduledTask(Base):
             "id": self.id,
             "user_key": self.user_key,
             "target_steps": self.target_steps,
+            "min_target_steps": self.min_target_steps,
+            "max_target_steps": self.max_target_steps,
             "start_hour": self.start_hour,
             "end_hour": self.end_hour,
             "status": self.status,
@@ -374,6 +378,18 @@ def _ensure_schema_columns():
                 "ALTER TABLE scheduled_tasks "
                 "ADD COLUMN daily_plan TEXT "
                 "COMMENT '当天的累计目标计划(JSON)'"
+            )
+        if "min_target_steps" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN min_target_steps INT "
+                "COMMENT '每日目标步数下限'"
+            )
+        if "max_target_steps" not in task_columns:
+            task_alter_statements.append(
+                "ALTER TABLE scheduled_tasks "
+                "ADD COLUMN max_target_steps INT "
+                "COMMENT '每日目标步数上限'"
             )
         if "last_success_at" not in task_columns:
             task_alter_statements.append(

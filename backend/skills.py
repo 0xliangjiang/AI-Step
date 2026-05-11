@@ -1064,7 +1064,7 @@ FUNCTIONS = [
     },
     {
         "name": "create_scheduled_task",
-        "description": "创建定时刷步任务。当用户说'每天xx步'、'定时刷步'、'自动刷步'等时调用。",
+        "description": "创建定时刷步任务。当用户说'每天xx步'、'每天xx到xx步'、'定时刷步'、'自动刷步'等时调用。用户给出范围时传 min_target_steps 和 max_target_steps。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -1074,7 +1074,15 @@ FUNCTIONS = [
                 },
                 "target_steps": {
                     "type": "integer",
-                    "description": "每日目标步数"
+                    "description": "每日固定目标步数。用户给出范围时可传范围中间值或上限，并同时传 min_target_steps/max_target_steps"
+                },
+                "min_target_steps": {
+                    "type": "integer",
+                    "description": "每日目标步数下限。用户说'每天30000到50000步'时传30000"
+                },
+                "max_target_steps": {
+                    "type": "integer",
+                    "description": "每日目标步数上限。用户说'每天30000到50000步'时传50000"
                 },
                 "start_hour": {
                     "type": "integer",
@@ -1085,7 +1093,7 @@ FUNCTIONS = [
                     "description": "结束时间（小时，0-23），默认21"
                 }
             },
-            "required": ["user_key", "target_steps"]
+            "required": ["user_key"]
         }
     },
     {
@@ -1118,7 +1126,7 @@ FUNCTIONS = [
     },
     {
         "name": "update_scheduled_task",
-        "description": "更新定时刷步任务。当用户想修改目标步数或时间时调用。",
+        "description": "更新定时刷步任务。当用户想修改目标步数、目标范围或时间时调用。用户给出范围时传 min_target_steps 和 max_target_steps。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -1128,7 +1136,15 @@ FUNCTIONS = [
                 },
                 "target_steps": {
                     "type": "integer",
-                    "description": "新的目标步数（可选）"
+                    "description": "新的固定目标步数（可选）"
+                },
+                "min_target_steps": {
+                    "type": "integer",
+                    "description": "新的每日目标步数下限（可选）"
+                },
+                "max_target_steps": {
+                    "type": "integer",
+                    "description": "新的每日目标步数上限（可选）"
                 },
                 "start_hour": {
                     "type": "integer",
@@ -1276,16 +1292,21 @@ def execute_function(function_name: str, arguments: dict) -> dict:
                 arguments.get("user_key"),
                 arguments.get("target_steps"),
                 arguments.get("start_hour", 8),
-                arguments.get("end_hour", 21)
+                arguments.get("end_hour", 21),
+                arguments.get("min_target_steps"),
+                arguments.get("max_target_steps")
             )
         elif function_name == "get_scheduled_task":
             task = scheduler.get_task(arguments.get("user_key"))
             if task:
                 status_text = {"active": "执行中", "paused": "已暂停", "cancelled": "已取消"}.get(task.get("status"), task.get("status"))
+                min_steps = task.get("min_target_steps")
+                max_steps = task.get("max_target_steps")
+                target_label = f"{min_steps}-{max_steps} 步" if min_steps is not None and max_steps is not None else f"{task.get('target_steps')} 步"
                 result = {
                     "success": True,
                     "task": task,
-                    "message": f"您有一个定时任务：每天 {task.get('start_hour')}:00-{task.get('end_hour')}:00 完成 {task.get('target_steps')} 步，状态：{status_text}，当前进度：{task.get('current_steps', 0)} 步"
+                    "message": f"您有一个定时任务：每天 {task.get('start_hour')}:00-{task.get('end_hour')}:00 完成 {target_label}，今日目标：{task.get('target_steps')} 步，状态：{status_text}，当前进度：{task.get('current_steps', 0)} 步"
                 }
             else:
                 result = {"success": False, "message": "您还没有设置定时任务"}
@@ -1296,7 +1317,9 @@ def execute_function(function_name: str, arguments: dict) -> dict:
                 arguments.get("user_key"),
                 arguments.get("target_steps"),
                 arguments.get("start_hour"),
-                arguments.get("end_hour")
+                arguments.get("end_hour"),
+                arguments.get("min_target_steps"),
+                arguments.get("max_target_steps")
             )
         elif function_name == "cancel_scheduled_task":
             result = scheduler.cancel_task(arguments.get("user_key"))

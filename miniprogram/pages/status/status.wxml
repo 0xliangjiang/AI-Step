@@ -27,8 +27,8 @@
         <view class="chip-value">{{currentProgress}}</view>
       </view>
       <view class="info-chip">
-        <view class="chip-label">目标步数</view>
-        <view class="chip-value">{{targetSteps}}</view>
+        <view class="chip-label">目标范围</view>
+        <view class="chip-value">{{targetLabel}}</view>
       </view>
       <view class="info-chip">
         <view class="chip-label">连续重试</view>

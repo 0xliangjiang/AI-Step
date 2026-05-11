@@ -293,6 +293,21 @@ class StepScheduler:
         cumulative[-1] = target_steps
         return cumulative
 
+    def _choose_daily_target_steps(self, task: ScheduledTask) -> int:
+        min_steps = getattr(task, "min_target_steps", None)
+        max_steps = getattr(task, "max_target_steps", None)
+        if min_steps is None or max_steps is None:
+            return task.target_steps
+
+        min_steps = int(min_steps)
+        max_steps = int(max_steps)
+        if min_steps <= 0 or max_steps <= 0:
+            return task.target_steps
+        if min_steps > max_steps:
+            min_steps, max_steps = max_steps, min_steps
+
+        return random.randint(min_steps, max_steps)
+
     def _load_daily_plan(self, task: ScheduledTask, total_hours: int):
         if task.daily_plan:
             try:
@@ -302,6 +317,7 @@ class StepScheduler:
             except Exception:
                 pass
 
+        task.target_steps = self._choose_daily_target_steps(task)
         plan = self._generate_daily_plan(task.target_steps, total_hours)
         task.daily_plan = json.dumps(plan, ensure_ascii=False)
         self.log(f"任务 {task.user_key} 今日随机计划已生成: {plan}")
@@ -339,6 +355,7 @@ class StepScheduler:
         total_hours = max(task.end_hour - task.start_hour, 1)
         task.current_steps = 0
         task.current_step_index = 0
+        task.target_steps = self._choose_daily_target_steps(task)
         task.daily_plan = json.dumps(
             self._generate_daily_plan(task.target_steps, total_hours),
             ensure_ascii=False
@@ -380,9 +397,15 @@ class StepScheduler:
 
     # ==================== 任务管理方法 ====================
 
-    def create_task(self, user_key: str, target_steps: int,
-                   start_hour: int = 8, end_hour: int = 21) -> dict:
+    def create_task(self, user_key: str, target_steps: int = None,
+                   start_hour: int = 8, end_hour: int = 21,
+                   min_target_steps: int = None, max_target_steps: int = None) -> dict:
         """创建定时任务"""
+        min_target_steps, max_target_steps, target_steps = self._normalize_target_range(
+            target_steps,
+            min_target_steps,
+            max_target_steps
+        )
         self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
             # 检查用户是否可执行刷步
@@ -401,6 +424,8 @@ class StepScheduler:
             if existing:
                 # 更新现有任务
                 existing.target_steps = target_steps
+                existing.min_target_steps = min_target_steps
+                existing.max_target_steps = max_target_steps
                 existing.start_hour = start_hour
                 existing.end_hour = end_hour
                 existing.status = "active"
@@ -410,7 +435,7 @@ class StepScheduler:
                 existing.last_run_date = None
                 return {
                     "success": True,
-                    "message": f"已更新定时任务：每天 {start_hour}:00-{end_hour}:00 完成 {target_steps} 步",
+                    "message": f"已更新定时任务：每天 {start_hour}:00-{end_hour}:00 完成 {self._format_target_label(existing)}",
                     "task": existing.to_dict()
                 }
 
@@ -418,6 +443,8 @@ class StepScheduler:
             task = ScheduledTask(
                 user_key=user_key,
                 target_steps=target_steps,
+                min_target_steps=min_target_steps,
+                max_target_steps=max_target_steps,
                 start_hour=start_hour,
                 end_hour=end_hour,
                 status="active"
@@ -427,9 +454,37 @@ class StepScheduler:
 
             return {
                 "success": True,
-                "message": f"已创建定时任务：每天 {start_hour}:00-{end_hour}:00 完成 {target_steps} 步",
+                "message": f"已创建定时任务：每天 {start_hour}:00-{end_hour}:00 完成 {self._format_target_label(task)}",
                 "task": task.to_dict()
             }
+
+    def _normalize_target_range(self, target_steps: int = None,
+                                min_target_steps: int = None,
+                                max_target_steps: int = None):
+        if min_target_steps is not None or max_target_steps is not None:
+            if min_target_steps is None:
+                min_target_steps = target_steps
+            if max_target_steps is None:
+                max_target_steps = target_steps
+            if min_target_steps is None or max_target_steps is None:
+                raise ValueError("范围任务需要提供目标步数下限和上限")
+            min_target_steps = int(min_target_steps)
+            max_target_steps = int(max_target_steps)
+            if min_target_steps > max_target_steps:
+                min_target_steps, max_target_steps = max_target_steps, min_target_steps
+            target_steps = random.randint(min_target_steps, max_target_steps)
+            return min_target_steps, max_target_steps, target_steps
+
+        if target_steps is None:
+            raise ValueError("请提供目标步数")
+        return None, None, int(target_steps)
+
+    def _format_target_label(self, task: ScheduledTask) -> str:
+        min_steps = getattr(task, "min_target_steps", None)
+        max_steps = getattr(task, "max_target_steps", None)
+        if min_steps is not None and max_steps is not None:
+            return f"{min_steps}-{max_steps} 步"
+        return f"{task.target_steps} 步"
 
     def get_task(self, user_key: str) -> Optional[Dict[str, Any]]:
         """获取用户的定时任务"""
@@ -456,6 +511,7 @@ class StepScheduler:
 
             # 计算每小时步数分配
             target_steps = task.target_steps
+            target_label = self._format_target_label(task)
             start_hour = task.start_hour
             end_hour = task.end_hour
             total_hours = end_hour - start_hour
@@ -483,19 +539,23 @@ class StepScheduler:
                 "hourly_plan": hourly_plan,
                 "summary": {
                     "target_steps": target_steps,
+                    "target_label": target_label,
+                    "min_target_steps": task.min_target_steps,
+                    "max_target_steps": task.max_target_steps,
                     "time_range": f"{start_hour}:00-{end_hour}:00",
                     "total_hours": total_hours,
                     "avg_steps_per_hour": math.ceil(target_steps / total_hours) if total_hours > 0 else 0,
                     "status": status_text,
                     "current_steps": task.current_steps,
                     "current_progress": f"{task.current_steps}/{target_steps}",
-                    "note": "每天生成前少后多的随机累计目标计划"
+                    "note": "每天生成当天目标和前少后多的随机累计计划"
                 },
-                "message": f"定时任务详情：每天 {start_hour}:00-{end_hour}:00 刷到 {target_steps} 步，共 {total_hours} 个时段，按随机递增计划完成目标"
+                "message": f"定时任务详情：每天 {start_hour}:00-{end_hour}:00 刷到 {target_label}，今日目标 {target_steps} 步，共 {total_hours} 个时段，按随机递增计划完成目标"
             }
 
     def update_task(self, user_key: str, target_steps: int = None,
-                   start_hour: int = None, end_hour: int = None) -> dict:
+                   start_hour: int = None, end_hour: int = None,
+                   min_target_steps: int = None, max_target_steps: int = None) -> dict:
         """更新定时任务"""
         self._ensure_scheduled_tasks_schema()
         with get_db_session() as db:
@@ -507,16 +567,29 @@ class StepScheduler:
             if not task:
                 return {"success": False, "message": "没有找到定时任务"}
 
-            if target_steps is not None:
-                task.target_steps = target_steps
+            if target_steps is not None or min_target_steps is not None or max_target_steps is not None:
+                normalized_min, normalized_max, normalized_target = self._normalize_target_range(
+                    target_steps if target_steps is not None else task.target_steps,
+                    min_target_steps,
+                    max_target_steps
+                )
+                task.target_steps = normalized_target
+                task.min_target_steps = normalized_min
+                task.max_target_steps = normalized_max
+                task.current_steps = 0
+                task.current_step_index = 0
+                task.daily_plan = None
+                task.last_run_date = None
             if start_hour is not None:
                 task.start_hour = start_hour
+                task.daily_plan = None
             if end_hour is not None:
                 task.end_hour = end_hour
+                task.daily_plan = None
 
             return {
                 "success": True,
-                "message": f"定时任务已更新：每天 {task.start_hour}:00-{task.end_hour}:00 完成 {task.target_steps} 步",
+                "message": f"定时任务已更新：每天 {task.start_hour}:00-{task.end_hour}:00 完成 {self._format_target_label(task)}",
                 "task": task.to_dict()
             }
 

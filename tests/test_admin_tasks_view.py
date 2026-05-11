@@ -12,6 +12,14 @@ class AdminTasksViewTests(unittest.TestCase):
         self.assertIn("连续失败", content)
         self.assertIn("最近错误", content)
 
+    def test_admin_tasks_view_shows_target_range_and_today_target(self):
+        content = (ROOT / "frontend" / "src" / "views" / "AdminTasks.vue").read_text(encoding="utf-8")
+
+        self.assertIn("getTargetLabel(task)", content)
+        self.assertIn("今日目标", content)
+        self.assertIn("min_target_steps", content)
+        self.assertIn("max_target_steps", content)
+
 
 if __name__ == "__main__":
     unittest.main()

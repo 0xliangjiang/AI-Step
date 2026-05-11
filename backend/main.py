@@ -397,11 +397,15 @@ async def get_user_sync_status(user_key: str = ""):
             elif task.get("last_success_at"):
                 last_result_text = "已完成"
             status_text = {"active": "已开启", "paused": "已暂停"}.get(task.get("status"), "状态更新中")
+            min_steps = task.get("min_target_steps")
+            max_steps = task.get("max_target_steps")
+            target_label = f"{min_steps}-{max_steps}" if min_steps is not None and max_steps is not None else str(task.get("target_steps", 0))
             data = {
                 "has_task": True,
                 "status_text": status_text,
                 "last_result_text": last_result_text,
                 "target_steps": task.get("target_steps", 0),
+                "target_label": target_label,
                 "time_range": f"{task.get('start_hour')}:00-{task.get('end_hour')}:00",
                 "current_progress": f"{task.get('current_steps', 0)}/{task.get('target_steps', 0)}",
                 "last_success_at": task.get("last_success_at"),
@@ -633,6 +637,36 @@ class OrderResponse(BaseModel):
     pay_params: Optional[dict] = None
 
 
+def _settle_paid_order(db, order: PaymentOrder, transaction_id: Optional[str] = None):
+    """Mark an order paid and grant VIP days once."""
+    paid_at = get_china_now()
+    updated_rows = db.query(PaymentOrder).filter(
+        PaymentOrder.id == order.id,
+        PaymentOrder.status == "pending"
+    ).update({
+        PaymentOrder.status: "paid",
+        PaymentOrder.transaction_id: transaction_id,
+        PaymentOrder.paid_at: paid_at,
+    }, synchronize_session=False)
+
+    if updated_rows == 0:
+        return False
+
+    order.status = "paid"
+    order.transaction_id = transaction_id
+    order.paid_at = paid_at
+
+    user = db.query(User).filter(User.user_key == order.user_key).first()
+    if user:
+        now = get_china_now()
+        if user.vip_expire_at and user.vip_expire_at > now:
+            user.vip_expire_at = user.vip_expire_at + timedelta(days=order.days)
+        else:
+            user.vip_expire_at = now + timedelta(days=order.days)
+
+    return True
+
+
 async def _build_package_response():
     if REVIEW_MODE:
         return PackageResponse(
@@ -757,15 +791,17 @@ async def query_payment_order(order_no: str, user_key: str = ""):
         if order.user_key != user_key:
             return {"success": False, "message": "无权查看该订单"}
 
-        remote_status = None
+        remote_status = order.status
         remote_trade_state_desc = ""
 
-        # 如果订单待支付，主动查询微信，但不在这里做最终入账
+        # 如果订单待支付，主动查询微信；微信确认成功后做幂等入账，兜底回调丢失场景
         if order.status == "pending":
             result = wechat_pay.query_order(order_no)
             if result.get("success"):
                 remote_status = result.get("trade_state")
                 remote_trade_state_desc = result.get("trade_state_desc") or ""
+                if remote_status == "SUCCESS":
+                    _settle_paid_order(db, order, result.get("transaction_id"))
 
         return {
             "success": True,
@@ -830,32 +866,11 @@ async def payment_notify(request: Request):
             return Response(content=wechat_pay.fail_response("金额不匹配"), media_type="application/xml")
 
         # 原子更新订单状态，确保并发场景下只有一个请求能完成最终入账
-        paid_at = get_china_now()
-        updated_rows = db.query(PaymentOrder).filter(
-            PaymentOrder.id == order.id,
-            PaymentOrder.status == "pending"
-        ).update({
-            PaymentOrder.status: "paid",
-            PaymentOrder.transaction_id: transaction_id,
-            PaymentOrder.paid_at: paid_at,
-        }, synchronize_session=False)
-
-        if updated_rows == 0:
+        settled = _settle_paid_order(db, order, transaction_id)
+        if not settled:
             return Response(content=wechat_pay.success_response(), media_type="application/xml")
 
-        order.status = "paid"
-        order.transaction_id = transaction_id
-        order.paid_at = paid_at
-
-        # 增加用户会员时间
-        user = db.query(User).filter(User.user_key == order.user_key).first()
-        if user:
-            if user.vip_expire_at and user.vip_expire_at > get_china_now():
-                user.vip_expire_at = user.vip_expire_at + timedelta(days=order.days)
-            else:
-                user.vip_expire_at = get_china_now() + timedelta(days=order.days)
-
-            print(f"[Payment] 支付成功(回调): {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
+        print(f"[Payment] 支付成功(回调): {order_no}, 用户: {order.user_key}, 增加 {order.days} 天")
 
     return Response(content=wechat_pay.success_response(), media_type="application/xml")
 

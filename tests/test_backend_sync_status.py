@@ -16,6 +16,7 @@ class BackendSyncStatusTests(unittest.TestCase):
         self.assertIn('db.query(StepRecord)', main_py)
         self.assertIn('"next_sync_at"', main_py)
         self.assertIn('"logs"', main_py)
+        self.assertIn('"target_label"', main_py)
 
     def test_scheduler_persists_recent_sync_records_for_hidden_status_page(self):
         scheduler_py = (ROOT / 'backend' / 'scheduler.py').read_text(encoding='utf-8')
@@ -24,6 +25,14 @@ class BackendSyncStatusTests(unittest.TestCase):
         self.assertIn('db.add(StepRecord(', scheduler_py)
         self.assertIn('"scheduled_sync"', scheduler_py)
         self.assertIn('execution_mode', scheduler_py)
+
+    def test_scheduled_tasks_schema_includes_daily_target_range_columns(self):
+        models_py = (ROOT / 'backend' / 'models.py').read_text(encoding='utf-8')
+
+        self.assertIn('min_target_steps = Column(Integer', models_py)
+        self.assertIn('max_target_steps = Column(Integer', models_py)
+        self.assertIn('ADD COLUMN min_target_steps INT', models_py)
+        self.assertIn('ADD COLUMN max_target_steps INT', models_py)
 
 
 if __name__ == '__main__':

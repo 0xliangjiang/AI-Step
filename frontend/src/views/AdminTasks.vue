@@ -41,13 +41,18 @@
                 <span class="user-email" v-if="task.user_email">{{ task.user_email }}</span>
               </div>
             </td>
-            <td>{{ task.target_steps.toLocaleString() }} 步</td>
+            <td>
+              <div class="meta-stack">
+                <span>{{ getTargetLabel(task) }}</span>
+                <span v-if="hasTargetRange(task)">今日目标：{{ formatNumber(task.target_steps) }} 步</span>
+              </div>
+            </td>
             <td>{{ task.start_hour }}:00 - {{ task.end_hour }}:00</td>
             <td>
               <div class="progress-bar">
                 <div class="progress-fill" :style="{ width: getProgress(task) + '%' }"></div>
               </div>
-              <span class="progress-text">{{ task.current_steps.toLocaleString() }} / {{ task.target_steps.toLocaleString() }}</span>
+              <span class="progress-text">{{ formatNumber(task.current_steps) }} / {{ formatNumber(task.target_steps) }}</span>
             </td>
             <td>
               <span :class="['status-badge', task.status]">
@@ -133,6 +138,22 @@ export default {
     getProgress(task) {
       if (!task.target_steps) return 0
       return Math.min(100, Math.round((task.current_steps / task.target_steps) * 100))
+    },
+
+    formatNumber(value) {
+      return Number(value || 0).toLocaleString()
+    },
+
+    hasTargetRange(task) {
+      return task.min_target_steps !== null && task.min_target_steps !== undefined &&
+        task.max_target_steps !== null && task.max_target_steps !== undefined
+    },
+
+    getTargetLabel(task) {
+      if (this.hasTargetRange(task)) {
+        return `${this.formatNumber(task.min_target_steps)} - ${this.formatNumber(task.max_target_steps)} 步`
+      }
+      return `${this.formatNumber(task.target_steps)} 步`
     },
 
     getStatusText(status) {

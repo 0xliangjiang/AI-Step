@@ -48,6 +48,8 @@ class _FakeTask:
     def __init__(self):
         self.user_key = "user-1"
         self.target_steps = 50000
+        self.min_target_steps = None
+        self.max_target_steps = None
         self.start_hour = 8
         self.end_hour = 21
         self.status = "active"
@@ -66,6 +68,8 @@ class _FakeTask:
         return {
             "user_key": self.user_key,
             "target_steps": self.target_steps,
+            "min_target_steps": self.min_target_steps,
+            "max_target_steps": self.max_target_steps,
             "start_hour": self.start_hour,
             "end_hour": self.end_hour,
             "status": self.status,
@@ -225,6 +229,47 @@ class SchedulerTests(unittest.TestCase):
         self.assertIsNotNone(task.daily_plan)
         plan = json.loads(task.daily_plan)
         self.assertEqual(6, len(plan))
+        self.assertEqual(12000, plan[-1])
+
+    def test_reset_task_for_new_day_picks_target_within_configured_range(self):
+        task = _FakeTask()
+        task.target_steps = 12000
+        task.min_target_steps = 10000
+        task.max_target_steps = 15000
+        task.start_hour = 8
+        task.end_hour = 14
+
+        with patch("scheduler.random.randint", return_value=13750):
+            self.scheduler._reset_task_for_new_day(task, "2026-04-13")
+
+        self.assertEqual(13750, task.target_steps)
+        plan = json.loads(task.daily_plan)
+        self.assertEqual(13750, plan[-1])
+
+    def test_load_daily_plan_regenerates_when_range_task_has_no_saved_plan(self):
+        task = _FakeTask()
+        task.target_steps = 12000
+        task.min_target_steps = 10000
+        task.max_target_steps = 15000
+        task.daily_plan = None
+
+        with patch("scheduler.random.randint", return_value=14200):
+            plan = self.scheduler._load_daily_plan(task, total_hours=4)
+
+        self.assertEqual(14200, task.target_steps)
+        self.assertEqual(14200, plan[-1])
+
+    def test_fixed_target_task_keeps_existing_target_when_generating_plan(self):
+        task = _FakeTask()
+        task.target_steps = 12000
+        task.min_target_steps = None
+        task.max_target_steps = None
+
+        with patch("scheduler.random.randint") as randint_mock:
+            plan = self.scheduler._load_daily_plan(task, total_hours=4)
+
+        randint_mock.assert_not_called()
+        self.assertEqual(12000, task.target_steps)
         self.assertEqual(12000, plan[-1])
 
     def test_get_task_detail_uses_saved_daily_plan_for_hourly_breakdown(self):
