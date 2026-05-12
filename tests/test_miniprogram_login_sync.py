@@ -67,6 +67,26 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn("title: '支付已到账'", vip_js)
         self.assertIn("title: '支付处理中'", vip_js)
 
+    def test_vip_page_hides_packages_and_payment_in_review_mode(self):
+        vip_js = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.js').read_text(encoding='utf-8')
+        vip_wxml = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxml').read_text(encoding='utf-8')
+
+        self.assertIn('reviewMode: false', vip_js)
+        self.assertIn('const app = getApp()', vip_js)
+        self.assertIn('reviewMode: app.isReviewMode()', vip_js)
+        self.assertIn('if (this.data.reviewMode) {', vip_js)
+        self.assertIn('packages: []', vip_js)
+        self.assertIn('selectedPackage: null', vip_js)
+        self.assertIn('return Promise.resolve()', vip_js)
+        self.assertIn("title: '当前版本暂未开放'", vip_js)
+
+        self.assertIn('wx:if="{{reviewMode}}"', vip_wxml)
+        self.assertIn('当前版本暂未开放此服务', vip_wxml)
+        self.assertIn('wx:if="{{!reviewMode && packages.length}}"', vip_wxml)
+        self.assertIn('wx:elif="{{!reviewMode && !loading}}"', vip_wxml)
+        self.assertIn('wx:if="{{!reviewMode}}"', vip_wxml)
+        self.assertIn('class="footer" wx:if="{{!reviewMode}}"', vip_wxml)
+
     def test_homepage_no_longer_auto_prompts_login_before_browsing(self):
         index_js = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.js').read_text(encoding='utf-8')
         index_wxml = (ROOT / 'miniprogram' / 'pages' / 'index' / 'index.wxml').read_text(encoding='utf-8')

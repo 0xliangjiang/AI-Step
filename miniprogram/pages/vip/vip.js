@@ -1,5 +1,6 @@
 // pages/vip/vip.js
 const api = require('../../utils/api')
+const app = getApp()
 
 const PACKAGE_CACHE_KEY = 'vipPackagesCache'
 const PACKAGE_ENDPOINTS = ['/membership/options', '/vip/packages', '/packages']
@@ -13,7 +14,8 @@ Page({
     loading: true,
     paying: false,
     usingCachedPackages: false,
-    loadError: ''
+    loadError: '',
+    reviewMode: false
   },
 
   onLoad() {
@@ -25,6 +27,19 @@ Page({
   },
 
   async loadPackages() {
+    this.setData({ reviewMode: app.isReviewMode() })
+    if (this.data.reviewMode) {
+      this.setData({
+        packages: [],
+        selectedPackage: null,
+        loading: false,
+        paying: false,
+        usingCachedPackages: false,
+        loadError: ''
+      })
+      return Promise.resolve()
+    }
+
     if (this.loadingPackagesPromise) {
       return this.loadingPackagesPromise
     }
@@ -145,6 +160,11 @@ Page({
   },
 
   async createOrder() {
+    if (this.data.reviewMode) {
+      wx.showToast({ title: '当前版本暂未开放', icon: 'none' })
+      return
+    }
+
     const pkg = this.data.selectedPackage
     if (!pkg) {
       wx.showToast({ title: '请选择套餐', icon: 'none' })

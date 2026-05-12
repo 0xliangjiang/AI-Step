@@ -15,8 +15,13 @@
     <button class="retry-btn" bindtap="refreshPackages">重新加载</button>
   </view>
 
+  <view class="packages-empty" wx:if="{{reviewMode}}">
+    <view class="empty-title">当前版本暂未开放此服务</view>
+    <view class="empty-desc">你可以继续使用已开放的记录和同步功能。</view>
+  </view>
+
   <!-- 套餐列表 -->
-  <view class="package-spotlight" wx:if="{{packages.length}}">
+  <view class="package-spotlight" wx:if="{{!reviewMode && packages.length}}">
     <view class="spotlight-caption">推荐方案</view>
     <view
       class="package-hero {{selectedPackage && selectedPackage.id === item.id ? 'selected' : ''}}"
@@ -50,14 +55,14 @@
     </view>
   </view>
 
-  <view class="packages-empty" wx:elif="{{!loading}}">
+  <view class="packages-empty" wx:elif="{{!reviewMode && !loading}}">
     <view class="empty-title">套餐暂时没加载出来</view>
     <view class="empty-desc">可以重新加载一次，稍后再回来看看。</view>
     <button class="retry-btn" bindtap="refreshPackages">重新加载</button>
   </view>
 
   <!-- 权益说明 -->
-  <view class="benefits">
+  <view class="benefits" wx:if="{{!reviewMode}}">
     <view class="benefits-title">会员权益</view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
@@ -74,7 +79,7 @@
   </view>
 
   <!-- 底部按钮 -->
-  <view class="footer">
+  <view class="footer" wx:if="{{!reviewMode}}">
     <view class="footer-summary" wx:if="{{selectedPackage}}">
       <text class="footer-summary-label">已选方案</text>
       <text class="footer-summary-value">{{selectedPackage.name}} · {{selectedPackage.days}}天</text>
