@@ -41,10 +41,6 @@ function request(url, method, data) {
         if (res.statusCode === 200) {
           resolve(res.data)
         } else if (res.statusCode === 401) {
-          // 未登录，重新登录
-          if (app && typeof app.loginWithWechat === 'function') {
-            app.loginWithWechat().catch(() => {})
-          }
           reject(new Error('请先登录'))
         } else {
           reject(new Error(res.data.message || '请求失败'))

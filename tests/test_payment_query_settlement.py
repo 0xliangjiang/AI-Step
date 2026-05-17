@@ -94,9 +94,13 @@ class _FakeSession:
     def __init__(self):
         self.order = _FakeOrder()
         self.user = _FakeUser()
+        self.committed = False
 
     def query(self, model):
         return _FakeQuery(self, model)
+
+    def commit(self):
+        self.committed = True
 
 
 class _FakeSessionContext:
@@ -150,6 +154,68 @@ class PaymentQuerySettlementTests(unittest.TestCase):
         self.assertEqual("wx_txn_existing", session.order.transaction_id)
         self.assertEqual(original_expire, session.user.vip_expire_at)
         query_order.assert_not_called()
+
+    def test_payment_notify_settles_valid_callback_once(self):
+        session = _FakeSession()
+        original_expire = session.user.vip_expire_at
+
+        async def body(_self):
+            return b"<xml></xml>"
+
+        request = type("Request", (), {"body": body})()
+
+        with patch.object(main, "PaymentOrder", _FakePaymentOrderModel), \
+                patch.object(main, "User", _FakeUserModel), \
+                patch.object(main, "get_db_session", return_value=_FakeSessionContext(session)), \
+                patch.object(main.wechat_pay, "parse_notify", return_value={
+                    "success": True,
+                    "data": {
+                        "result_code": "SUCCESS",
+                        "out_trade_no": "ORDER123",
+                        "transaction_id": "wx_txn_notify",
+                        "appid": main.WX_APPID,
+                        "mch_id": main.WX_MCH_ID,
+                        "total_fee": "990",
+                    },
+                }):
+            response = asyncio.run(main.payment_notify(request))
+
+        self.assertIn("SUCCESS", response.body.decode("utf-8"))
+        self.assertEqual("paid", session.order.status)
+        self.assertEqual("wx_txn_notify", session.order.transaction_id)
+        self.assertEqual(original_expire + timedelta(days=30), session.user.vip_expire_at)
+
+    def test_payment_notify_rejects_amount_mismatch_without_settlement(self):
+        session = _FakeSession()
+        original_expire = session.user.vip_expire_at
+
+        async def body(_self):
+            return b"<xml></xml>"
+
+        request = type("Request", (), {"body": body})()
+
+        with patch.object(main, "PaymentOrder", _FakePaymentOrderModel), \
+                patch.object(main, "User", _FakeUserModel), \
+                patch.object(main, "get_db_session", return_value=_FakeSessionContext(session)), \
+                patch.object(main.wechat_pay, "parse_notify", return_value={
+                    "success": True,
+                    "data": {
+                        "result_code": "SUCCESS",
+                        "out_trade_no": "ORDER123",
+                        "transaction_id": "wx_txn_bad_amount",
+                        "appid": main.WX_APPID,
+                        "mch_id": main.WX_MCH_ID,
+                        "total_fee": "1",
+                    },
+                }):
+            response = asyncio.run(main.payment_notify(request))
+
+        body_text = response.body.decode("utf-8")
+        self.assertIn("FAIL", body_text)
+        self.assertIn("金额不匹配", body_text)
+        self.assertEqual("pending", session.order.status)
+        self.assertIsNone(session.order.transaction_id)
+        self.assertEqual(original_expire, session.user.vip_expire_at)
 
 
 if __name__ == "__main__":

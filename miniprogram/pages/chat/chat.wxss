@@ -632,3 +632,29 @@
 .login-gate-button::after {
   border: none;
 }
+
+.login-gate-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20rpx;
+  margin-top: 22rpx;
+}
+
+.login-gate-link {
+  width: 200rpx;
+  height: 72rpx;
+  border-radius: 36rpx;
+  background: #F6FAFD;
+  color: #52677A;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+}
+
+.login-gate-link::after {
+  border: none;
+}

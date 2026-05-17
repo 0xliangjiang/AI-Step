@@ -6,10 +6,6 @@
     <view class="desc">把运动记录和同步体验升级</view>
   </view>
 
-  <view class="packages-tip" wx:if="{{usingCachedPackages}}">
-    套餐正在刷新，当前先展示上次可用内容。
-  </view>
-
   <view class="packages-error" wx:if="{{loadError}}">
     <text>{{loadError}}</text>
     <button class="retry-btn" bindtap="refreshPackages">重新加载</button>
@@ -62,7 +58,7 @@
   </view>
 
   <!-- 权益说明 -->
-  <view class="benefits" wx:if="{{!reviewMode}}">
+  <view class="benefits" wx:if="{{!reviewMode && packages.length}}">
     <view class="benefits-title">会员权益</view>
     <view class="benefit-item">
       <text class="benefit-icon">✓</text>
@@ -79,7 +75,7 @@
   </view>
 
   <!-- 底部按钮 -->
-  <view class="footer" wx:if="{{!reviewMode}}">
+  <view class="footer" wx:if="{{!reviewMode && packages.length}}">
     <view class="footer-summary" wx:if="{{selectedPackage}}">
       <text class="footer-summary-label">已选方案</text>
       <text class="footer-summary-value">{{selectedPackage.name}} · {{selectedPackage.days}}天</text>

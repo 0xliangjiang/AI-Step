@@ -173,7 +173,6 @@ Page({
 
   onLoad() {
     this.syncUserProfile()
-    this.checkChatLoginGate()
     // 添加欢迎消息
     this.setData({
       messages: [{
@@ -185,23 +184,6 @@ Page({
 
   onShow() {
     this.syncUserProfile()
-    this.checkChatLoginGate()
-  },
-
-  checkChatLoginGate() {
-    const app = getApp()
-    if (app.isReviewMode()) {
-      this.setData({
-        showLoginGate: false,
-        loginLoading: false
-      })
-      return
-    }
-
-    this.setData({
-      showLoginGate: !app.globalData.openid,
-      loginLoading: false
-    })
   },
 
   syncUserProfile() {
@@ -232,8 +214,6 @@ Page({
 
   // 发送消息
   async sendMessage() {
-    if (this.data.showLoginGate) return
-
     const text = this.data.inputText.trim()
     if (!text || this.data.loading) return
 
@@ -252,6 +232,23 @@ Page({
       this.setData({ inputText: '' })
       // 直接弹出分享弹窗
       this.showShareModalFromParsed(sportParsed)
+      return
+    }
+
+    if (!api.isLoggedIn()) {
+      this.setData({
+        messages: [
+          ...this.data.messages,
+          { role: 'user', content: text },
+          {
+            role: 'assistant',
+            content: '已先帮你保留这条记录。登录后可以继续同步数据、查看历史和保存记录；也可以暂不登录，继续浏览基础内容。'
+          }
+        ],
+        inputText: ''
+      })
+      this.promptLoginForAccountFeature()
+      this.scrollToBottom()
       return
     }
 
@@ -301,6 +298,9 @@ Page({
 
     } catch (e) {
       console.error('发送消息失败', e)
+      if (e.message === '请先登录') {
+        this.promptLoginForAccountFeature()
+      }
       this.setData({
         messages: [...this.data.messages, {
           role: 'assistant',
@@ -346,8 +346,6 @@ Page({
 
   // 快捷按钮：直接弹出分享弹窗
   openShareModal() {
-    if (this.data.showLoginGate) return
-
     this.setData({
       showShareModal: true,
       inputValue: '',
@@ -438,8 +436,6 @@ Page({
 
   // 分享到微信运动
   async shareToWeRun() {
-    if (this.data.showLoginGate) return
-
     console.log('shareToWeRun 被调用')
     const { selectedSportIndex, selectedUnitIndex, inputValue, sportTypes } = this.data
     const selectedType = sportTypes[selectedSportIndex]
@@ -572,8 +568,6 @@ Page({
 
   // 快捷操作
   quickAction(e) {
-    if (this.data.showLoginGate) return
-
     const action = e.currentTarget.dataset.action
     if (action === 'share_sport') {
       this.openShareModal()
@@ -581,6 +575,29 @@ Page({
     }
 
     this.appendStaticQuickReply(action)
+  },
+
+  promptLoginForAccountFeature() {
+    if (api.isLoggedIn()) return
+
+    this.setData({
+      showLoginGate: true,
+      loginLoading: false
+    })
+  },
+
+  dismissLoginGate() {
+    this.setData({
+      showLoginGate: false,
+      loginLoading: false
+    })
+  },
+
+  goHomeFromLoginGate() {
+    this.dismissLoginGate()
+    wx.switchTab({
+      url: '/pages/index/index'
+    })
   },
 
   async handleGateLogin() {

@@ -2,7 +2,6 @@
 const api = require('../../utils/api')
 const app = getApp()
 
-const PACKAGE_CACHE_KEY = 'vipPackagesCache'
 const PACKAGE_ENDPOINTS = ['/membership/options', '/vip/packages', '/packages']
 const PAYMENT_QUERY_MAX_ATTEMPTS = 4
 const PAYMENT_QUERY_INTERVAL_MS = 1200
@@ -13,7 +12,6 @@ Page({
     selectedPackage: null,
     loading: true,
     paying: false,
-    usingCachedPackages: false,
     loadError: '',
     reviewMode: false
   },
@@ -34,7 +32,6 @@ Page({
         selectedPackage: null,
         loading: false,
         paying: false,
-        usingCachedPackages: false,
         loadError: ''
       })
       return Promise.resolve()
@@ -44,36 +41,30 @@ Page({
       return this.loadingPackagesPromise
     }
 
-    const cachedPackages = wx.getStorageSync(PACKAGE_CACHE_KEY) || []
-    if (cachedPackages.length && !this.data.packages.length) {
-      this.applyPackages(cachedPackages, true)
-    } else {
-      this.setData({ loading: true, loadError: '' })
-    }
+    this.setData({ loading: true, loadError: '' })
 
-    this.loadingPackagesPromise = this.fetchPackages(cachedPackages)
+    this.loadingPackagesPromise = this.fetchPackages()
     return this.loadingPackagesPromise
   },
 
-  async fetchPackages(cachedPackages) {
+  async fetchPackages() {
     try {
       const res = await this.requestPackages()
       if (!res.success) {
-        this.showPackageFallback(cachedPackages, res.message || '套餐暂时没加载出来，请重新加载。')
+        this.showPackageUnavailable(res.message || '套餐暂时没加载出来，请重新加载。')
         return
       }
 
       const packages = Array.isArray(res.data) ? res.data : []
       if (packages.length) {
-        this.applyPackages(packages, false)
-        wx.setStorageSync(PACKAGE_CACHE_KEY, packages)
+        this.applyPackages(packages)
         return
       }
 
-      this.showPackageFallback(cachedPackages, '套餐暂时没加载出来，请重新加载。')
+      this.showPackageUnavailable('套餐暂时没加载出来，请重新加载。')
     } catch (e) {
       console.error('加载套餐失败', e)
-      this.showPackageFallback(cachedPackages, '网络开小差了，请重新加载。')
+      this.showPackageUnavailable('网络开小差了，请重新加载。')
     } finally {
       this.loadingPackagesPromise = null
     }
@@ -93,22 +84,17 @@ Page({
     throw lastError || new Error('网络开小差了，请重新加载。')
   },
 
-  showPackageFallback(cachedPackages, message) {
-    if (cachedPackages.length) {
-      this.applyPackages(cachedPackages, true)
-      this.setData({
-        loadError: `${message} 先展示上次可用内容。`
-      })
-      return
-    }
-
+  showPackageUnavailable(message) {
+    wx.removeStorageSync('vipPackagesCache')
     this.setData({
+      packages: [],
+      selectedPackage: null,
       loading: false,
       loadError: message
     })
   },
 
-  applyPackages(packages, usingCachedPackages) {
+  applyPackages(packages) {
     const selectedPackageId = this.data.selectedPackage && this.data.selectedPackage.id
     const selectedPackage = packages.find((pkg) => pkg.id === selectedPackageId) || packages[0] || null
 
@@ -116,8 +102,7 @@ Page({
       packages,
       selectedPackage,
       loading: false,
-      usingCachedPackages,
-      loadError: usingCachedPackages ? this.data.loadError : ''
+      loadError: ''
     })
   },
 
