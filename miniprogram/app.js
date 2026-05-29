@@ -26,7 +26,8 @@ App({
     apiPrefix: '/api',
     // 小程序广告配置
     adConfig: {
-      rewardedVideoAdUnitId: 'adunit-xxxxxxxxxxxxxxxx'
+      // 激励视频广告位 ID（微信公众平台「广告位」申请）
+      rewardedVideoAdUnitId: 'adunit-02cfdc01b28fc37e'
     },
     // 用户信息
     userInfo: null,
@@ -34,7 +35,8 @@ App({
     openid: null,
     vipExpireAt: null,
     publicConfig: {
-      reviewMode: false
+      reviewMode: false,
+      hideMembership: false
     }
   },
 
@@ -53,12 +55,14 @@ App({
         url: `${this.globalData.baseUrl}${this.globalData.apiPrefix}/public/config`,
         method: 'GET',
         success: (res) => {
-          const reviewMode = !!(res.data && res.data.success && res.data.data && res.data.data.review_mode)
-          this.globalData.publicConfig = { reviewMode }
+          const data = (res.data && res.data.success && res.data.data) || {}
+          const reviewMode = !!data.review_mode
+          const hideMembership = !!data.hide_membership
+          this.globalData.publicConfig = { reviewMode, hideMembership }
           resolve(this.globalData.publicConfig)
         },
         fail: () => {
-          this.globalData.publicConfig = { reviewMode: false }
+          this.globalData.publicConfig = { reviewMode: false, hideMembership: false }
           resolve(this.globalData.publicConfig)
         }
       })
@@ -67,6 +71,12 @@ App({
 
   isReviewMode() {
     return !!(this.globalData.publicConfig && this.globalData.publicConfig.reviewMode)
+  },
+
+  isMembershipHidden() {
+    const config = this.globalData.publicConfig || {}
+    // 审核模式也视为隐藏会员，二者任一开启即隐藏会员入口
+    return !!(config.reviewMode || config.hideMembership)
   },
 
   // 检查登录状态

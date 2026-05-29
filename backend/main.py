@@ -14,7 +14,7 @@ from ai_client import ai_client
 from chat_card import find_matching_card_key
 from skills import skills
 from admin import router as admin_router, init_admin
-from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID, REVIEW_MODE
+from config import FREE_DAYS, AD_REWARD_DAYS, AD_DAILY_LIMIT, WX_APPID, WX_MCH_ID, REVIEW_MODE, HIDE_MEMBERSHIP
 import time
 from collections import defaultdict
 import threading
@@ -199,7 +199,8 @@ async def get_public_config():
     return PublicConfigResponse(
         success=True,
         data={
-            "review_mode": REVIEW_MODE
+            "review_mode": REVIEW_MODE,
+            "hide_membership": HIDE_MEMBERSHIP
         }
     )
 
@@ -488,129 +489,147 @@ async def chat(request: ChatRequest):
     )
 
 
-# ==================== 广告相关接口 - 暂时隐藏 ====================
-# class AdWatchResponse(BaseModel):
-#     success: bool
-#     message: str
-#     reward_days: int = 0
-#     daily_count: int = 0
-#     daily_limit: int = 0
-#     vip_expire_at: Optional[str] = None
+# ==================== 广告相关接口 ====================
+def _membership_hidden() -> bool:
+    """会员/付费/看广告相关功能是否对外隐藏。
+
+    审核模式(REVIEW_MODE)或会员隐藏开关(HIDE_MEMBERSHIP)任一开启即隐藏。
+    注意：聊天/记录(/api/chat)只受 REVIEW_MODE 控制，不在此处理。
+    """
+    return REVIEW_MODE or HIDE_MEMBERSHIP
+
+
+class AdWatchResponse(BaseModel):
+    success: bool
+    message: str
+    reward_days: int = 0
+    daily_count: int = 0
+    daily_limit: int = 0
+    vip_expire_at: Optional[str] = None
+
+
+class WatchAdRequest(BaseModel):
+    user_key: str = ""
+
+
+def get_ad_reward_config() -> tuple:
+    """获取广告奖励配置（优先从数据库读取，否则使用默认配置）"""
+    with get_db_session() as db:
+        reward_days_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "ad_reward_days"
+        ).first()
+        daily_limit_config = db.query(SystemConfig).filter(
+            SystemConfig.config_key == "ad_daily_limit"
+        ).first()
+
+        reward_days = int(reward_days_config.config_value) if reward_days_config else AD_REWARD_DAYS
+        daily_limit = int(daily_limit_config.config_value) if daily_limit_config else AD_DAILY_LIMIT
+
+        return reward_days, daily_limit
 #
 #
-# def get_ad_reward_config() -> tuple:
-#     """获取广告奖励配置（优先从数据库读取，否则使用默认配置）"""
-#     with get_db_session() as db:
-#         reward_days_config = db.query(SystemConfig).filter(
-#             SystemConfig.config_key == "ad_reward_days"
-#         ).first()
-#         daily_limit_config = db.query(SystemConfig).filter(
-#             SystemConfig.config_key == "ad_daily_limit"
-#         ).first()
-#
-#         reward_days = int(reward_days_config.config_value) if reward_days_config else AD_REWARD_DAYS
-#         daily_limit = int(daily_limit_config.config_value) if daily_limit_config else AD_DAILY_LIMIT
-#
-#         return reward_days, daily_limit
-#
-#
-# @app.get("/api/user/ad-config")
-# async def get_ad_config():
-#     """获取广告奖励配置"""
-#     reward_days, daily_limit = get_ad_reward_config()
-#     return {
-#         "success": True,
-#         "reward_days": reward_days,
-#         "daily_limit": daily_limit
-#     }
-#
-#
-# @app.get("/api/user/ad-status", response_model=AdWatchResponse)
-# async def get_ad_status(user_key: str = ""):
-#     """获取用户今日观看广告状态"""
-#     if not user_key:
-#         return AdWatchResponse(success=False, message="请先登录")
-#
-#     today = datetime.now().strftime("%Y-%m-%d")
-#     reward_days, daily_limit = get_ad_reward_config()
-#
-#     with get_db_session() as db:
-#         # 查询今日观看次数
-#         today_count = db.query(AdWatch).filter(
-#             AdWatch.user_key == user_key,
-#             AdWatch.watch_date == today
-#         ).count()
-#
-#         # 查询用户信息
-#         user = db.query(User).filter(User.user_key == user_key).first()
-#
-#         return AdWatchResponse(
-#             success=True,
-#             message="获取成功",
-#             daily_count=today_count,
-#             daily_limit=daily_limit,
-#             reward_days=reward_days,
-#             vip_expire_at=user.vip_expire_at.strftime("%Y-%m-%d %H:%M:%S") if user and user.vip_expire_at else None
-#         )
+@app.get("/api/user/ad-config")
+async def get_ad_config():
+    """获取广告奖励配置"""
+    reward_days, daily_limit = get_ad_reward_config()
+    return {
+        "success": True,
+        "reward_days": reward_days,
+        "daily_limit": daily_limit
+    }
+
+
+@app.get("/api/user/ad-status", response_model=AdWatchResponse)
+async def get_ad_status(user_key: str = ""):
+    """获取用户今日观看广告状态"""
+    if not user_key:
+        return AdWatchResponse(success=False, message="请先登录")
+
+    today = get_china_now().strftime("%Y-%m-%d")
+    reward_days, daily_limit = get_ad_reward_config()
+
+    with get_db_session() as db:
+        # 查询今日观看次数
+        today_count = db.query(AdWatch).filter(
+            AdWatch.user_key == user_key,
+            AdWatch.watch_date == today
+        ).count()
+
+        # 查询用户信息
+        user = db.query(User).filter(User.user_key == user_key).first()
+
+        return AdWatchResponse(
+            success=True,
+            message="获取成功",
+            daily_count=today_count,
+            daily_limit=daily_limit,
+            reward_days=reward_days,
+            vip_expire_at=user.vip_expire_at.strftime("%Y-%m-%d %H:%M:%S") if user and user.vip_expire_at else None
+        )
 #
 #
-# @app.post("/api/user/watch-ad", response_model=AdWatchResponse)
-# async def watch_ad(user_key: str = ""):
-#     """观看广告奖励会员天数"""
-#     if not user_key:
-#         return AdWatchResponse(success=False, message="请先登录")
-#
-#     today = datetime.now().strftime("%Y-%m-%d")
-#     reward_days, daily_limit = get_ad_reward_config()
-#
-#     with get_db_session() as db:
-#         # 查询今日观看次数
-#         today_count = db.query(AdWatch).filter(
-#             AdWatch.user_key == user_key,
-#             AdWatch.watch_date == today
-#         ).count()
-#
-#         # 检查是否超过每日限制
-#         if today_count >= daily_limit:
-#             return AdWatchResponse(
-#                 success=False,
-#                 message=f"今日观看次数已达上限（{daily_limit}次），请明天再来",
-#                 daily_count=today_count,
-#                 daily_limit=daily_limit
-#             )
-#
-#         # 获取用户信息
-#         user = db.query(User).filter(User.user_key == user_key).first()
-#         if not user:
-#             return AdWatchResponse(success=False, message="用户不存在")
-#
-#         # 计算新的会员过期时间
-#         if user.vip_expire_at and user.vip_expire_at > datetime.now():
-#             new_expire = user.vip_expire_at + timedelta(days=reward_days)
-#         else:
-#             new_expire = datetime.now() + timedelta(days=reward_days)
-#
-#         # 更新用户会员时间
-#         user.vip_expire_at = new_expire
-#
-#         # 记录观看记录
-#         ad_watch = AdWatch(
-#             user_key=user_key,
-#             watch_date=today,
-#             reward_days=reward_days
-#         )
-#         db.add(ad_watch)
-#
-#         print(f"[AdWatch] 用户 {user_key} 观看广告，奖励 {reward_days} 天，新过期时间: {new_expire}")
-#
-#         return AdWatchResponse(
-#             success=True,
-#             message=f"观看成功，获得 {reward_days} 天会员",
-#             reward_days=reward_days,
-#             daily_count=today_count + 1,
-#             daily_limit=daily_limit,
-#             vip_expire_at=new_expire.strftime("%Y-%m-%d %H:%M:%S")
-#         )
+@app.post("/api/user/watch-ad", response_model=AdWatchResponse)
+async def watch_ad(request: WatchAdRequest):
+    """观看广告奖励会员天数"""
+    if _membership_hidden():
+        return AdWatchResponse(success=False, message="当前版本暂未开放此功能")
+
+    user_key = request.user_key.strip()
+    if not user_key:
+        return AdWatchResponse(success=False, message="请先登录")
+
+    today = get_china_now().strftime("%Y-%m-%d")
+    reward_days, daily_limit = get_ad_reward_config()
+
+    with get_db_session() as db:
+        # 查询今日观看次数
+        today_count = db.query(AdWatch).filter(
+            AdWatch.user_key == user_key,
+            AdWatch.watch_date == today
+        ).count()
+
+        # 检查是否超过每日限制
+        if today_count >= daily_limit:
+            return AdWatchResponse(
+                success=False,
+                message=f"今日观看次数已达上限（{daily_limit}次），请明天再来",
+                daily_count=today_count,
+                daily_limit=daily_limit
+            )
+
+        # 获取用户信息
+        user = db.query(User).filter(User.user_key == user_key).first()
+        if not user:
+            return AdWatchResponse(success=False, message="用户不存在")
+
+        # 计算新的会员过期时间
+        now = get_china_now()
+        if user.vip_expire_at and user.vip_expire_at > now:
+            new_expire = user.vip_expire_at + timedelta(days=reward_days)
+        else:
+            new_expire = now + timedelta(days=reward_days)
+
+        # 更新用户会员时间
+        user.vip_expire_at = new_expire
+
+        # 记录观看记录
+        ad_watch = AdWatch(
+            user_key=user_key,
+            watch_date=today,
+            reward_days=reward_days
+        )
+        db.add(ad_watch)
+
+        print(f"[AdWatch] 用户 {user_key} 观看广告，奖励 {reward_days} 天，新过期时间: {new_expire}")
+
+        return AdWatchResponse(
+            success=True,
+            message=f"观看成功，获得 {reward_days} 天会员",
+            reward_days=reward_days,
+            daily_count=today_count + 1,
+            daily_limit=daily_limit,
+            vip_expire_at=new_expire.strftime("%Y-%m-%d %H:%M:%S")
+        )
 # ==================== 广告相关接口结束 ====================
 
 
@@ -668,7 +687,7 @@ def _settle_paid_order(db, order: PaymentOrder, transaction_id: Optional[str] = 
 
 
 async def _build_package_response():
-    if REVIEW_MODE:
+    if _membership_hidden():
         return PackageResponse(
             success=False,
             message="当前版本暂未开放购买功能"
@@ -706,7 +725,7 @@ async def get_membership_options():
 @app.post("/api/pay/create", response_model=OrderResponse)
 async def create_payment_order(request: CreateOrderRequest):
     """创建支付订单"""
-    if REVIEW_MODE:
+    if _membership_hidden():
         return OrderResponse(success=False, message="当前版本暂未开放购买功能")
 
     if not request.user_key:
@@ -774,7 +793,7 @@ async def create_payment_order(request: CreateOrderRequest):
 @app.get("/api/pay/query/{order_no}")
 async def query_payment_order(order_no: str, user_key: str = ""):
     """查询订单状态，不做最终入账"""
-    if REVIEW_MODE:
+    if _membership_hidden():
         return {"success": False, "message": "当前版本暂未开放购买功能"}
 
     if not user_key:

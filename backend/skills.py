@@ -816,7 +816,12 @@ class StepSkills:
         # 检查会员状态
         vip_expire_at = user.get('vip_expire_at')
         if not vip_expire_at or vip_expire_at < get_china_now():
-            return {'success': False, 'message': '您的会员已过期，请充值后继续使用。回复"充值"了解详情。'}
+            return {
+                'success': False,
+                'vip_expired': True,
+                'requested_steps': steps,
+                'message': '您的会员已过期。可续费会员，或观看一次视频领取今日会员后继续。'
+            }
 
         result = _bindband_with_retry(
             user.get('zepp_email'),

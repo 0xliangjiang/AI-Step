@@ -180,7 +180,43 @@
     </view>
   </view>
 
-  <view class="login-gate-mask" wx:if="{{showLoginGate}}">
+  <!-- 会员过期：续费 / 看广告二选一 -->
+  <view class="modal-mask" wx:if="{{showVipModal}}" bindtap="closeVipModal">
+    <view class="modal-box vip-modal" catchtap>
+      <view class="modal-header">
+        <text class="modal-icon">👑</text>
+        <text class="modal-title">会员已过期</text>
+      </view>
+
+      <view class="vip-modal-desc">继续完成本次操作，请选择下面任意一种方式恢复会员。</view>
+
+      <view class="vip-modal-options">
+        <view class="vip-option" bindtap="goRenewVip">
+          <view class="vip-option-icon">💎</view>
+          <view class="vip-option-info">
+            <view class="vip-option-title">续费会员</view>
+            <view class="vip-option-sub">解锁更长有效期，畅享全部权益</view>
+          </view>
+          <text class="vip-option-arrow">›</text>
+        </view>
+
+        <view class="vip-option highlight {{watchingAd ? 'disabled' : ''}}" bindtap="watchAdForVip">
+          <view class="vip-option-icon">🎬</view>
+          <view class="vip-option-info">
+            <view class="vip-option-title">看视频领今日会员</view>
+            <view class="vip-option-sub">免费观看一段视频，领取 1 天会员</view>
+          </view>
+          <text class="vip-option-arrow">{{watchingAd ? '...' : '›'}}</text>
+        </view>
+      </view>
+
+      <view class="modal-btns">
+        <button class="modal-btn cancel" bindtap="closeVipModal">暂不需要</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="login-gate-panel" wx:if="{{showLoginGate}}">
     <view class="login-gate-card">
       <view class="login-gate-badge">登</view>
       <view class="login-gate-title">登录后保存记录</view>

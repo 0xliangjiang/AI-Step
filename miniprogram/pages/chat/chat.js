@@ -157,6 +157,7 @@ Page({
     loadingHint: '正在处理中，一般会在 2 分钟内返回',
     scrollToView: '',
     showLoginGate: false,
+    loginPromptDismissed: false,
     loginLoading: false,
     userProfile: null,
     avatarText: '微',
@@ -168,7 +169,11 @@ Page({
     sportTypes: SPORT_TYPES,
     selectedSportIndex: 0,
     selectedUnitIndex: 0,
-    inputValue: ''
+    inputValue: '',
+    // 会员过期：续费/看广告二选一
+    showVipModal: false,
+    pendingBrushSteps: 0,
+    watchingAd: false
   },
 
   onLoad() {
@@ -236,19 +241,7 @@ Page({
     }
 
     if (!api.isLoggedIn()) {
-      this.setData({
-        messages: [
-          ...this.data.messages,
-          { role: 'user', content: text },
-          {
-            role: 'assistant',
-            content: '已先帮你保留这条记录。登录后可以继续同步数据、查看历史和保存记录；也可以暂不登录，继续浏览基础内容。'
-          }
-        ],
-        inputText: ''
-      })
-      this.promptLoginForAccountFeature()
-      this.scrollToBottom()
+      this.appendGuestRecordReply(text)
       return
     }
 
@@ -295,6 +288,9 @@ Page({
 
       // 检测数据同步成功，自动弹出弹窗
       this.checkBrushSuccess(res.reply, res.function_result)
+
+      // 检测会员过期：弹出续费/看广告二选一
+      this.checkVipExpired(res.function_result)
 
     } catch (e) {
       console.error('发送消息失败', e)
@@ -370,6 +366,22 @@ Page({
     this.scrollToBottom()
   },
 
+  appendGuestRecordReply(text) {
+    this.setData({
+      messages: [
+        ...this.data.messages,
+        { role: 'user', content: text },
+        {
+          role: 'assistant',
+          content: '已记录在当前页面。你可以继续输入运动内容；需要同步数据、保存历史或查看账号记录时，再登录即可。'
+        }
+      ],
+      inputText: ''
+    })
+
+    this.scrollToBottom()
+  },
+
   // 检测数据同步完成
   checkBrushSuccess(reply, functionResult) {
     // 从 function_result 获取同步数据
@@ -400,6 +412,155 @@ Page({
         inputValue: String(distance),
         selectedSportIndex: runIndex >= 0 ? runIndex : 0,
         selectedUnitIndex: distanceUnitIndex >= 0 ? distanceUnitIndex : 0
+      })
+    }
+  },
+
+  // 检测会员过期：弹出续费/看广告二选一
+  checkVipExpired(functionResult) {
+    if (!functionResult || !functionResult.vip_expired) return
+
+    // 会员功能隐藏时（审核/隐藏开关），不弹续费/看广告窗，仅保留后端返回的文案
+    const app = getApp()
+    if (app.isMembershipHidden && app.isMembershipHidden()) return
+
+    const steps = parseInt(functionResult.requested_steps) || 0
+    this.setData({
+      showVipModal: true,
+      pendingBrushSteps: steps
+    })
+  },
+
+  // 关闭会员弹窗
+  closeVipModal() {
+    this.setData({ showVipModal: false })
+  },
+
+  // 去续费会员
+  goRenewVip() {
+    this.setData({ showVipModal: false })
+    wx.navigateTo({
+      url: '/pages/vip/vip'
+    })
+  },
+
+  // 看激励视频领取今日会员
+  watchAdForVip() {
+    if (this.data.watchingAd) return
+
+    const app = getApp()
+    const adUnitId = app.globalData.adConfig && app.globalData.adConfig.rewardedVideoAdUnitId
+    if (!adUnitId || adUnitId === 'adunit-xxxxxxxxxxxxxxxx') {
+      wx.showToast({ title: '广告位未配置', icon: 'none' })
+      return
+    }
+
+    if (!wx.createRewardedVideoAd) {
+      wx.showToast({ title: '当前微信版本不支持', icon: 'none' })
+      return
+    }
+
+    this.setData({ watchingAd: true })
+
+    if (!this.rewardedVideoAd) {
+      this.rewardedVideoAd = wx.createRewardedVideoAd({ adUnitId })
+
+      this.rewardedVideoAd.onClose((res) => {
+        this.setData({ watchingAd: false })
+        if (res && res.isEnded) {
+          // 完整观看，发放奖励
+          this.claimVipReward()
+        } else {
+          wx.showToast({ title: '看完整段才能领取会员', icon: 'none' })
+        }
+      })
+
+      this.rewardedVideoAd.onError((err) => {
+        console.error('广告加载失败', err)
+        this.setData({ watchingAd: false })
+        wx.showToast({ title: '广告加载失败，请稍后再试', icon: 'none' })
+      })
+    }
+
+    this.rewardedVideoAd.show().catch(() => {
+      // 失败时重新加载再展示
+      this.rewardedVideoAd.load()
+        .then(() => this.rewardedVideoAd.show())
+        .catch(() => {
+          this.setData({ watchingAd: false })
+          wx.showToast({ title: '广告加载失败，请稍后再试', icon: 'none' })
+        })
+    })
+  },
+
+  // 领取看广告奖励，并自动重试刷步
+  async claimVipReward() {
+    const steps = this.data.pendingBrushSteps
+    try {
+      wx.showLoading({ title: '领取中...' })
+      const res = await api.request('/user/watch-ad', 'POST', {})
+      wx.hideLoading()
+
+      if (!res.success) {
+        wx.showToast({ title: res.message || '领取失败', icon: 'none' })
+        return
+      }
+
+      this.setData({ showVipModal: false })
+      wx.showToast({ title: `+${res.reward_days || 1}天会员`, icon: 'success' })
+
+      // 刷新全局用户信息
+      const app = getApp()
+      if (app.getUserInfo) {
+        app.getUserInfo().catch(() => {})
+      }
+
+      // 领取成功后自动重试刷步
+      if (steps > 0) {
+        setTimeout(() => {
+          this.resendBrush(steps)
+        }, 800)
+      }
+    } catch (e) {
+      wx.hideLoading()
+      wx.showToast({ title: '网络错误，请稍后再试', icon: 'none' })
+    }
+  },
+
+  // 自动重发刷步指令（领取会员后）
+  async resendBrush(steps) {
+    const text = `刷${steps}步`
+
+    const messages = [...this.data.messages, { role: 'user', content: text }]
+    this.setData({
+      messages,
+      loading: true,
+      loadingHint: '正在处理中，一般会在 2 分钟内返回'
+    })
+    this.scrollToBottom()
+
+    try {
+      const res = await api.chat(text)
+      const newMessages = [...this.data.messages, {
+        role: 'assistant',
+        content: res.reply || '抱歉，出现了一些问题，请稍后再试。',
+        images: res.images || []
+      }]
+      this.setData({
+        messages: newMessages,
+        loading: false
+      })
+      this.scrollToBottom()
+      this.checkBrushSuccess(res.reply, res.function_result)
+      this.checkVipExpired(res.function_result)
+    } catch (e) {
+      console.error('重试刷步失败', e)
+      this.setData({
+        messages: [...this.data.messages, {
+          role: 'assistant',
+          content: '网络错误，请稍后再试。'
+        }],
+        loading: false
       })
     }
   },
@@ -436,6 +597,11 @@ Page({
 
   // 分享到微信运动
   async shareToWeRun() {
+    if (!api.isLoggedIn()) {
+      this.promptLoginForAccountFeature()
+      return
+    }
+
     console.log('shareToWeRun 被调用')
     const { selectedSportIndex, selectedUnitIndex, inputValue, sportTypes } = this.data
     const selectedType = sportTypes[selectedSportIndex]
@@ -579,6 +745,7 @@ Page({
 
   promptLoginForAccountFeature() {
     if (api.isLoggedIn()) return
+    if (this.data.loginPromptDismissed) return
 
     this.setData({
       showLoginGate: true,
@@ -589,6 +756,7 @@ Page({
   dismissLoginGate() {
     this.setData({
       showLoginGate: false,
+      loginPromptDismissed: true,
       loginLoading: false
     })
   },
@@ -612,6 +780,7 @@ Page({
       this.syncUserProfile()
       this.setData({
         showLoginGate: false,
+        loginPromptDismissed: false,
         loginLoading: false
       })
       wx.showToast({

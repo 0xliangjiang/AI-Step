@@ -60,7 +60,7 @@ MAX_STEPS = 98800
 # 会员配置
 FREE_DAYS = int(os.getenv("FREE_DAYS", 3))  # 新用户免费天数
 AD_REWARD_DAYS = int(os.getenv("AD_REWARD_DAYS", 1))  # 看广告奖励天数
-AD_DAILY_LIMIT = int(os.getenv("AD_DAILY_LIMIT", 3))  # 每天看广告次数上限
+AD_DAILY_LIMIT = int(os.getenv("AD_DAILY_LIMIT", 1))  # 每天看广告次数上限（每天1次领1天会员）
 
 # 微信支付配置
 WX_APPID = os.getenv("WX_APPID", "")  # 小程序AppID
@@ -77,6 +77,9 @@ WX_KEY_PATH = os.getenv("WX_KEY_PATH", "")
 CAPTCHA_RETRY_TIMES = 5
 APP_DEBUG = os.getenv("APP_DEBUG", "true").lower() in ("1", "true", "yes", "on")
 REVIEW_MODE = os.getenv("REVIEW_MODE", "false").lower() in ("1", "true", "yes", "on")
+# 仅隐藏会员/付费/看广告相关入口与页面，聊天、记录、分享等功能照常可用。
+# 提交审核时设为 true 隐藏会员功能，过审后改回 false 即可，无需改代码重新发版。
+HIDE_MEMBERSHIP = os.getenv("HIDE_MEMBERSHIP", "false").lower() in ("1", "true", "yes", "on")
 
 # 网络超时配置（秒）
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", 30))  # 请求超时

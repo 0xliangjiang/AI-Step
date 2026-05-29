@@ -41,14 +41,22 @@
     <view class="login-section" wx:else>
       <view class="login-tip">登录后可保存个人资料</view>
       <button class="primary-btn login-btn" bindtap="handleLogin">
-        <text class="btn-icon">👤</text>
-        <text>微信一键登录</text>
+        <view class="wechat-mark">微</view>
+        <view class="login-btn-copy">
+          <text class="login-btn-title">微信一键登录</text>
+          <text class="login-btn-subtitle">保存资料与同步记录</text>
+        </view>
+        <text class="login-btn-arrow">›</text>
       </button>
+      <view class="login-actions">
+        <button class="login-link-btn" bindtap="skipLogin">暂不登录</button>
+        <button class="login-link-btn" bindtap="goHome">返回首页</button>
+      </view>
     </view>
 
     <!-- 状态标签 -->
     <view class="status-row" wx:if="{{isLoggedIn}}">
-      <view class="status-chip {{isVip ? 'vip' : 'default'}}">
+      <view class="status-chip {{isVip ? 'vip' : 'default'}}" wx:if="{{!hideMembership}}">
         <text class="chip-icon">{{isVip ? '✦' : '○'}}</text>
         <text>{{isVip ? '会员有效' : '体验中'}}</text>
       </view>
@@ -64,7 +72,7 @@
     </view>
 
     <!-- 统计区块 -->
-    <view class="account-stats" wx:if="{{isLoggedIn}}">
+    <view class="account-stats" wx:if="{{isLoggedIn && !hideMembership}}">
       <view class="stat-block">
         <view class="stat-icon">⏱</view>
         <view class="stat-info">
@@ -101,7 +109,7 @@
   </view>
 
   <!-- 会员卡片 -->
-  <view class="section" wx:if="{{isLoggedIn && !reviewMode}}">
+  <view class="section" wx:if="{{isLoggedIn && !hideMembership}}">
     <view class="section-header">
       <view class="section-title">会员信息</view>
       <view class="section-line"></view>

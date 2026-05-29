@@ -20,6 +20,7 @@ Page({
     isVip: false,
     loading: true,
     reviewMode: false,
+    hideMembership: false,
     showProfileGuide: false,
     
   },
@@ -40,6 +41,7 @@ Page({
     const app = getApp()
     this.setData({
       reviewMode: app.isReviewMode(),
+      hideMembership: app.isMembershipHidden(),
       greeting: this.getGreeting()
     })
   },

@@ -47,7 +47,7 @@
     "disableSWC": true
   },
   "compileType": "miniprogram",
-  "libVersion": "3.3.4",
+  "libVersion": "3.14.0",
   "appid": "wx1140685aa6da522b",
   "projectname": "sport-ai-assistant",
   "condition": {},

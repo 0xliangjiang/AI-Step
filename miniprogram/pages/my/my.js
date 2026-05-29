@@ -27,6 +27,7 @@ Page({
     isLoggedIn: false,
     loading: true,
     reviewMode: false,
+    hideMembership: false,
     savingProfile: false,
     secretTapCount: 0,
     secretTapDeadline: 0
@@ -54,7 +55,8 @@ Page({
   syncReviewMode() {
     const app = getApp()
     this.setData({
-      reviewMode: app.isReviewMode()
+      reviewMode: app.isReviewMode(),
+      hideMembership: app.isMembershipHidden()
     })
   },
 
@@ -206,6 +208,19 @@ Page({
         icon: 'none'
       })
     }
+  },
+
+  skipLogin() {
+    wx.showToast({
+      title: '已暂不登录',
+      icon: 'none'
+    })
+  },
+
+  goHome() {
+    wx.switchTab({
+      url: '/pages/index/index'
+    })
   },
 
   onChooseAvatar(e) {
@@ -447,7 +462,7 @@ Page({
 
   // 去开通会员
   goVip() {
-    if (this.data.reviewMode) {
+    if (this.data.reviewMode || this.data.hideMembership) {
       wx.showToast({
         title: '当前版本暂未开放',
         icon: 'none'

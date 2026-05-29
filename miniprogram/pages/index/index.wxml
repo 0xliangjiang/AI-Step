@@ -5,7 +5,7 @@
 
   <!-- 用户欢迎卡片 -->
   <view class="welcome-card">
-    <view class="vip-badge" wx:if="{{isVip}}">
+    <view class="vip-badge" wx:if="{{isVip && !hideMembership}}">
       <text class="vip-icon">👑</text>
       <text>会员</text>
     </view>
@@ -30,7 +30,7 @@
       </view>
     </view>
 
-    <view class="status-bar">
+    <view class="status-bar" wx:if="{{!hideMembership}}">
       <view class="status-item">
         <text class="status-icon">{{isVip ? '✨' : '⏱'}}</text>
         <view class="status-text">

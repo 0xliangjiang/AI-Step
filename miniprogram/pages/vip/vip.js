@@ -25,7 +25,7 @@ Page({
   },
 
   async loadPackages() {
-    this.setData({ reviewMode: app.isReviewMode() })
+    this.setData({ reviewMode: app.isReviewMode() || app.isMembershipHidden() })
     if (this.data.reviewMode) {
       this.setData({
         packages: [],

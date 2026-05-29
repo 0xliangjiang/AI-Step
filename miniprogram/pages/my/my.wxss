@@ -161,15 +161,98 @@
 .login-tip {
   color: #6C7F90;
   font-size: 26rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 22rpx;
 }
 
 .login-btn {
   width: 100%;
-  max-width: 400rpx;
-  height: 88rpx;
-  background: linear-gradient(135deg, #FF8A3D 0%, #39B8FF 100%);
-  box-shadow: 0 6rpx 20rpx rgba(255, 138, 61, 0.28);
+  max-width: 520rpx;
+  min-height: 104rpx;
+  padding: 0 22rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, #20C36A 0%, #16A85A 100%);
+  color: #FFFFFF;
+  box-shadow: 0 12rpx 28rpx rgba(22, 168, 90, 0.24);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18rpx;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.login-btn:active {
+  transform: translateY(2rpx) scale(0.99);
+  box-shadow: 0 8rpx 18rpx rgba(22, 168, 90, 0.22);
+}
+
+.wechat-mark {
+  width: 58rpx;
+  height: 58rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  color: #16A85A;
+  font-size: 28rpx;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.login-btn-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4rpx;
+}
+
+.login-btn-title {
+  color: #FFFFFF;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.login-btn-subtitle {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 22rpx;
+  line-height: 1.2;
+}
+
+.login-btn-arrow {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 42rpx;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.login-actions {
+  margin-top: 18rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18rpx;
+}
+
+.login-link-btn {
+  min-width: 160rpx;
+  height: 68rpx;
+  padding: 0 24rpx;
+  margin: 0;
+  border-radius: 34rpx;
+  background: #F6FAFD;
+  color: #52677A;
+  font-size: 25rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-link-btn::after {
+  border: none;
 }
 
 /* 状态标签行 */

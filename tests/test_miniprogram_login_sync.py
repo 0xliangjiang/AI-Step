@@ -114,16 +114,23 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn('showLoginGate: false', chat_js)
         self.assertIn('loginLoading: false', chat_js)
         self.assertIn('promptLoginForAccountFeature()', chat_js)
+        self.assertIn('appendGuestRecordReply(text)', chat_js)
+        self.assertIn('this.appendGuestRecordReply(text)', chat_js)
         self.assertIn('handleGateLogin()', chat_js)
         self.assertIn('dismissLoginGate()', chat_js)
         self.assertIn('goHomeFromLoginGate()', chat_js)
+        self.assertIn('loginPromptDismissed: false', chat_js)
+        self.assertIn('if (this.data.loginPromptDismissed) return', chat_js)
         self.assertNotIn('checkChatLoginGate()', chat_js)
         self.assertNotIn('showLoginGate: !app.globalData.openid', chat_js)
         self.assertNotIn('if (this.data.showLoginGate) return', chat_js)
+        self.assertNotIn('已先帮你保留这条记录', chat_js)
         self.assertNotIn('当前版本暂未开放', chat_js)
         self.assertNotIn('app.loginWithWechat().catch(() => {})', api_js)
 
         self.assertIn('wx:if="{{showLoginGate}}"', chat_wxml)
+        self.assertNotIn('login-gate-mask', chat_wxml + chat_wxss)
+        self.assertIn('login-gate-panel', chat_wxml + chat_wxss)
         self.assertIn('bindtap="handleGateLogin"', chat_wxml)
         self.assertIn('bindtap="dismissLoginGate"', chat_wxml)
         self.assertIn('bindtap="goHomeFromLoginGate"', chat_wxml)
@@ -132,11 +139,22 @@ class MiniProgramLoginSyncTests(unittest.TestCase):
         self.assertIn('暂不登录', chat_wxml)
         self.assertIn('返回首页', chat_wxml)
 
-        self.assertIn('.login-gate-mask', chat_wxss)
-        self.assertIn('.login-gate-card', chat_wxss)
         self.assertIn('.login-gate-button', chat_wxss)
         self.assertIn('.login-gate-actions', chat_wxss)
         self.assertIn('.login-gate-link', chat_wxss)
+
+    def test_my_page_login_entry_has_decline_and_return_actions(self):
+        my_js = (ROOT / 'miniprogram' / 'pages' / 'my' / 'my.js').read_text(encoding='utf-8')
+        my_wxml = (ROOT / 'miniprogram' / 'pages' / 'my' / 'my.wxml').read_text(encoding='utf-8')
+        my_wxss = (ROOT / 'miniprogram' / 'pages' / 'my' / 'my.wxss').read_text(encoding='utf-8')
+
+        self.assertIn('skipLogin()', my_js)
+        self.assertIn('goHome()', my_js)
+        self.assertIn('bindtap="skipLogin"', my_wxml)
+        self.assertIn('bindtap="goHome"', my_wxml)
+        self.assertIn('暂不登录', my_wxml)
+        self.assertIn('返回首页', my_wxml)
+        self.assertIn('login-actions', my_wxml + my_wxss)
 
 
 if __name__ == '__main__':
