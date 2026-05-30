@@ -37,6 +37,8 @@ services:
       - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-30}
       - CAPTCHA_PENDING_EXPIRE=${CAPTCHA_PENDING_EXPIRE:-300}
       - APP_DEBUG=${APP_DEBUG:-false}
+      - REVIEW_MODE=${REVIEW_MODE:-false}
+      - HIDE_MEMBERSHIP=${HIDE_MEMBERSHIP:-false}
       - USE_PROXY_MODE=${USE_PROXY_MODE:-true}
     networks:
       - ai-step-network

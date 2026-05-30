@@ -62,8 +62,11 @@ class MembershipHiddenSwitchTests(unittest.TestCase):
 
     def test_vip_page_hides_when_membership_switch_on(self):
         vip_js = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.js').read_text(encoding='utf-8')
+        vip_wxml = (ROOT / 'miniprogram' / 'pages' / 'vip' / 'vip.wxml').read_text(encoding='utf-8')
 
         self.assertIn('app.isReviewMode() || app.isMembershipHidden()', vip_js)
+        self.assertIn('class="header" wx:if="{{!reviewMode}}"', vip_wxml)
+        self.assertIn('class="packages-error" wx:if="{{!reviewMode && loadError}}"', vip_wxml)
 
     def test_chat_modal_suppressed_when_membership_hidden(self):
         chat_js = (ROOT / 'miniprogram' / 'pages' / 'chat' / 'chat.js').read_text(encoding='utf-8')

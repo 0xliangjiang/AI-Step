@@ -1,12 +1,12 @@
 <!--pages/vip/vip.wxml-->
 <view class="container">
   <!-- 标题 -->
-  <view class="header">
+  <view class="header" wx:if="{{!reviewMode}}">
     <view class="title">开通会员服务</view>
     <view class="desc">把运动记录和同步体验升级</view>
   </view>
 
-  <view class="packages-error" wx:if="{{loadError}}">
+  <view class="packages-error" wx:if="{{!reviewMode && loadError}}">
     <text>{{loadError}}</text>
     <button class="retry-btn" bindtap="refreshPackages">重新加载</button>
   </view>
